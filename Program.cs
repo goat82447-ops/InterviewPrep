@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using System.Net;
+using System.Net.Sockets;
 using InterviewPrep.Data;
 using InterviewPrep.Infrastructure;
 using InterviewPrep.Models;
@@ -13,8 +15,6 @@ using InterviewPrep.Web;
 // Modes:
 //   (default)   interactive console practice.
 //   --web       practice dashboard at http://localhost:5095.
-
-const string WebUrl = "http://localhost:5095";
 
 var config = AppConfig.Load(ProjectPaths.ProjectRoot);
 var scorer = new AnswerScorer();
@@ -223,8 +223,46 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
     });
 
     var port = Environment.GetEnvironmentVariable("PORT");
-    var url = string.IsNullOrWhiteSpace(port) ? WebUrl : $"http://0.0.0.0:{port}";
+    var listenPort = string.IsNullOrWhiteSpace(port) ? "5095" : port;
 
-    Console.WriteLine($"Interview Practice dashboard running at {url}");
+    // Bind to all network interfaces (not just localhost) so a phone or tablet
+    // on the SAME Wi-Fi can open the app and read answers there while you share
+    // your PC screen (Option 3: phone as a private second screen).
+    var url = $"http://0.0.0.0:{listenPort}";
+    var lanIp = GetLanIp();
+    var phoneUrl = lanIp is null ? null : $"http://{lanIp}:{listenPort}";
+    NetworkInfo.Configure(phoneUrl);
+
+    Console.WriteLine();
+    Console.WriteLine("Interview Practice dashboard is running.");
+    Console.WriteLine($"  On this PC:     http://localhost:{listenPort}");
+    if (phoneUrl is not null)
+    {
+        Console.WriteLine($"  On your phone:  {phoneUrl}   (must be on the same Wi-Fi)");
+        Console.WriteLine();
+        Console.WriteLine("  Tip: open the phone address above on your phone (or scan the QR code");
+        Console.WriteLine("       shown on the page), ask your questions and read the answers there.");
+        Console.WriteLine("       Share your PC screen normally \u2014 nothing on the PC shows the answer.");
+        Console.WriteLine("       If the phone can't load it, allow this app through Windows Firewall");
+        Console.WriteLine("       on Private networks when prompted.");
+    }
+
+    Console.WriteLine();
     app.Run(url);
+}
+
+// Best-effort local IPv4 address for this machine on the LAN. Uses a UDP socket
+// (no packets are actually sent) to discover which local address routes out.
+static string? GetLanIp()
+{
+    try
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Connect("8.8.8.8", 65530);
+        return (socket.LocalEndPoint as IPEndPoint)?.Address.ToString();
+    }
+    catch
+    {
+        return null;
+    }
 }
