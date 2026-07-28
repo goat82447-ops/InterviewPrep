@@ -138,6 +138,19 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.Content(html, "text/html");
     });
 
+    // JSON answer endpoint — lets the private floating window ask a new question
+    // and show the answer inside itself, without switching back to the shared tab.
+    app.MapPost("/ask-json", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var question = form["question"].ToString();
+        var model = form["model"].ToString();
+
+        using var assistant = new StudyAssistant(config);
+        var (answer, source) = await assistant.AnswerAsync(question, model);
+        return Results.Json(new { answer, source, html = AnswerFormat.ToHtml(answer) });
+    });
+
     // Mock interview: answer a question, get coached, then face a follow-up.
     app.MapGet("/mock", (HttpRequest request) =>
     {
