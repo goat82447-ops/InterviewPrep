@@ -16,6 +16,20 @@ public sealed class StudyAssistant : IDisposable
     private readonly AppConfig _config;
     private readonly HttpClient _http;
 
+    // Last-seen "remaining quota" per provider Id, so the model picker can show
+    // a compact number (e.g. "98,540 tok left") next to each model BEFORE you
+    // ask again. Updated every time a provider replies with rate-limit headers.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string>
+        LastUsageById = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Compact remaining-quota text last seen for a provider, or null
+    /// if that provider has not reported rate-limit headers yet this session.</summary>
+    public static string? GetLastUsage(string providerId) =>
+        !string.IsNullOrWhiteSpace(providerId)
+        && LastUsageById.TryGetValue(providerId, out var v)
+            ? v
+            : null;
+
     public StudyAssistant(AppConfig config)
     {
         _config = config;
@@ -219,6 +233,12 @@ public sealed class StudyAssistant : IDisposable
         {
             text += $" (resets in {reset})";
         }
+
+        // Cache a compact form (no provider name) for the model picker dropdown.
+        var compact = string.Join(" \u00b7 ", parts)
+            .Replace(" tokens left", " tok")
+            .Replace(" requests left", " req");
+        LastUsageById[provider.Id] = compact;
 
         return text;
     }
