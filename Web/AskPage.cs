@@ -9,7 +9,8 @@ internal static class AskPage
 {
     public static string Render(
         string? question, string? answer, string? source, bool aiEnabled,
-        IReadOnlyList<AiProvider> models, string? selectedModel)
+        IReadOnlyList<AiProvider> models, string? selectedModel, string? notice = null,
+        string? usage = null)
     {
         var sb = new StringBuilder();
         sb.Append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">");
@@ -29,6 +30,13 @@ internal static class AskPage
         sb.Append("</div></header>");
 
         sb.Append("<main class=\"wrap\">");
+
+        // Quota / key notice banner, shown at the top when the live model could
+        // not be used (e.g. daily quota reached) and the study bank answered.
+        if (!string.IsNullOrWhiteSpace(notice))
+        {
+            sb.Append($"<div class=\"notice\">{WebUtility.HtmlEncode(notice)}</div>");
+        }
 
         // Nav
         sb.Append("<div class=\"nav\">");
@@ -67,6 +75,11 @@ internal static class AskPage
         {
             sb.Append("<section class=\"acard\">");
             sb.Append($"<div class=\"src\">Answer \u00b7 {WebUtility.HtmlEncode(source ?? string.Empty)}</div>");
+            if (!string.IsNullOrWhiteSpace(usage))
+            {
+                sb.Append($"<div class=\"usage\">\ud83d\udcca {WebUtility.HtmlEncode(usage)} \u2014 switch model above if it runs low</div>");
+            }
+
             // Preserve line breaks and style the "Say it simply" line distinctly.
             sb.Append($"<div class=\"atext\">{AnswerFormat.ToHtml(answer)}</div>");
             sb.Append("</section>");
@@ -209,7 +222,9 @@ internal static class AskPage
         sb.Append("try{var fd=new FormData();fd.append('question',q);fd.append('model',currentModel());");
         sb.Append("var r=await fetch('/ask-json',{method:'POST',body:new URLSearchParams(fd)});");
         sb.Append("var d=await r.json();");
-        sb.Append("ansBox.innerHTML='<section class=\"acard\"><div class=\"src\">Answer \u00b7 '+(d.source||'')+'</div><div class=\"atext\">'+(d.html||'')+'</div></section>';");
+        sb.Append("var note=d.notice?'<div class=\"src\" style=\"background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 10px;margin-bottom:8px;\">'+d.notice+'</div>':'';");
+        sb.Append("var use=d.usage?'<div class=\"src\" style=\"background:#ecfdf5;border:1px solid #a7f3d0;color:#0f766e;border-radius:8px;padding:6px 10px;margin-top:6px;font-weight:700;\">\ud83d\udcca '+d.usage+'</div>':'';");
+        sb.Append("ansBox.innerHTML=note+'<section class=\"acard\"><div class=\"src\">Answer \u00b7 '+(d.source||'')+'</div>'+use+'<div class=\"atext\">'+(d.html||'')+'</div></section>';");
         sb.Append("}catch(e){ansBox.innerHTML='<div class=\"src\">Could not get an answer. Try again.</div>';}");
         sb.Append("}");
         // Build the mini ask UI (question box + Ask + mic + answer area) in the PiP window.
@@ -266,6 +281,8 @@ internal static class AskPage
         sb.Append(".brand-tag{font-size:13px;opacity:.9;margin-top:2px;}");
         sb.Append(".mode{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}");
         sb.Append(".wrap{max-width:820px;margin:-14px auto 40px;padding:0 24px;}");
+        sb.Append(".notice{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:600;line-height:1.55;margin-top:22px;}");
+        sb.Append(".usage{margin-top:6px;font-size:12.5px;font-weight:700;color:#0f766e;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 10px;display:inline-block;}");
         sb.Append(".nav{display:flex;gap:8px;margin:22px 0 16px;}");
         sb.Append(".chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#334155;text-decoration:none;}");
         sb.Append(".chip:hover{border-color:#0891b2;color:#0891b2;}");

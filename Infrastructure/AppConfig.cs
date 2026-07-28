@@ -81,13 +81,24 @@ public sealed class AppConfig
         var byId = new Dictionary<string, AiProvider>(StringComparer.OrdinalIgnoreCase)
         {
             ["groq"] = new(
-                "groq", "Groq \u2014 Llama 3.3 70B (fast)", null,
+                "groq", "Groq \u00b7 Llama 3.3 70B (free)", null,
                 "llama-3.3-70b-versatile", "https://api.groq.com/openai/v1/chat/completions"),
+            ["gemini"] = new(
+                "gemini", "Google Gemini \u00b7 2.0 Flash (free)", null,
+                "gemini-2.0-flash",
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"),
+            ["openrouter"] = new(
+                "openrouter", "OpenRouter \u00b7 Llama 3.3 70B (free)", null,
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["ollama"] = new(
+                "ollama", "Ollama \u00b7 Llama 3.1 (local, no key)", "ollama",
+                "llama3.1", "http://localhost:11434/v1/chat/completions"),
             ["openai"] = new(
-                "openai", "OpenAI \u2014 GPT-4o mini (ChatGPT)", null,
+                "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "openai" };
+        var order = new List<string> { "groq", "gemini", "openrouter", "ollama", "openai" };
         var defaultId = "groq";
 
         foreach (var file in new[] { "appsettings.json", "appsettings.Local.json" })
@@ -175,6 +186,8 @@ public sealed class AppConfig
 
         // Environment-variable overrides (handy for hosting).
         ApplyEnvKey(byId, "groq", "GROQ_API_KEY");
+        ApplyEnvKey(byId, "gemini", "GEMINI_API_KEY");
+        ApplyEnvKey(byId, "openrouter", "OPENROUTER_API_KEY");
         ApplyEnvKey(byId, "openai", "OPENAI_API_KEY");
         var legacyEnv = Environment.GetEnvironmentVariable("OpenAi__ApiKey");
         if (!string.IsNullOrWhiteSpace(legacyEnv) && byId.TryGetValue("groq", out var g))

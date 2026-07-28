@@ -16,19 +16,33 @@ public sealed class StudyAssistant : IDisposable
     private readonly AppConfig _config;
     private readonly HttpClient _http;
 
+    // Last-seen "remaining quota" per provider Id, so the model picker can show
+    // a compact number (e.g. "98,540 tok left") next to each model BEFORE you
+    // ask again. Updated every time a provider replies with rate-limit headers.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string>
+        LastUsageById = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Compact remaining-quota text last seen for a provider, or null
+    /// if that provider has not reported rate-limit headers yet this session.</summary>
+    public static string? GetLastUsage(string providerId) =>
+        !string.IsNullOrWhiteSpace(providerId)
+        && LastUsageById.TryGetValue(providerId, out var v)
+            ? v
+            : null;
+
     public StudyAssistant(AppConfig config)
     {
         _config = config;
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     }
 
-    public async Task<(string answer, string source)> AnswerAsync(
+    public async Task<(string answer, string source, string? notice, string? usage)> AnswerAsync(
         string question, string? providerId = null, CancellationToken ct = default)
     {
         question = (question ?? string.Empty).Trim();
         if (question.Length == 0)
         {
-            return ("Type a technical question to get an explained answer.", "info");
+            return ("Type a technical question to get an explained answer.", "info", null, null);
         }
 
         var provider = _config.GetProvider(providerId);
@@ -50,20 +64,70 @@ public sealed class StudyAssistant : IDisposable
             }
         }
 
+        // Remember the most informative failure so we can tell the user WHY the
+        // answer came from the offline study bank instead of the live model.
+        var worstFailure = AiFailure.None;
+        AiProvider? failedProvider = null;
+        string? lastUsage = null;
+
         foreach (var p in tryOrder)
         {
-            var ai = await AskOpenAiAsync(question, p, ct);
+            var (ai, failure, usage) = await AskOpenAiAsync(question, p, ct);
             if (!string.IsNullOrWhiteSpace(ai))
             {
-                return (ai!, p.DisplayName);
+                return (ai!, p.DisplayName, null, usage);
+            }
+
+            // Quota is the most important reason to surface; then invalid key.
+            if (failure > worstFailure)
+            {
+                worstFailure = failure;
+                failedProvider = p;
+                lastUsage = usage;
             }
         }
 
-        return (BestLocalMatch(question), "study bank");
+        var notice = BuildNotice(worstFailure, failedProvider, tryOrder.Count);
+        return (BestLocalMatch(question), "study bank", notice, lastUsage);
     }
 
-    private async Task<string?> AskOpenAiAsync(string question, AiProvider provider, CancellationToken ct)
+    /// <summary>Why a live AI call could not be used. Higher value = more
+    /// important to tell the user about.</summary>
+    private enum AiFailure
     {
+        None = 0,
+        Other = 1,
+        InvalidKey = 2,
+        Quota = 3,
+    }
+
+    private static string? BuildNotice(AiFailure failure, AiProvider? provider, int triedCount)
+    {
+        var name = provider?.DisplayName ?? "The AI model";
+        return failure switch
+        {
+            AiFailure.Quota =>
+                $"\u26a0\ufe0f {name} has hit its rate limit or daily quota, so this answer came from the " +
+                "offline study bank. Wait a bit and try again, or switch to another model \u2014 the free " +
+                "Groq tier resets every day (about 100,000 tokens / 1,000 requests per day).",
+            AiFailure.InvalidKey =>
+                $"\u26a0\ufe0f {name}\u2019s API key is missing or invalid, so this answer came from the offline " +
+                "study bank. Add a valid key in appsettings.Local.json to get live AI answers.",
+            AiFailure.Other when triedCount > 0 =>
+                "\u26a0\ufe0f The AI model could not be reached, so this answer came from the offline study " +
+                "bank. Check your internet connection and try again.",
+            _ => null,
+        };
+    }
+
+    private async Task<(string? content, AiFailure failure, string? usage)> AskOpenAiAsync(
+        string question, AiProvider provider, CancellationToken ct)
+    {
+        if (!provider.HasKey)
+        {
+            return (null, AiFailure.InvalidKey, null);
+        }
+
         try
         {
             var system =
@@ -109,9 +173,16 @@ public sealed class StudyAssistant : IDisposable
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
             using var response = await _http.SendAsync(request, ct);
+            var usage = BuildUsage(response, provider);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                var failure = (int)response.StatusCode switch
+                {
+                    429 => AiFailure.Quota,
+                    401 or 403 => AiFailure.InvalidKey,
+                    _ => AiFailure.Other,
+                };
+                return (null, failure, usage);
             }
 
             var json = await response.Content.ReadAsStringAsync(ct);
@@ -122,13 +193,63 @@ public sealed class StudyAssistant : IDisposable
                 .GetProperty("content")
                 .GetString();
 
-            return string.IsNullOrWhiteSpace(content) ? null : content.Trim();
+            return string.IsNullOrWhiteSpace(content)
+                ? (null, AiFailure.Other, usage)
+                : (content!.Trim(), AiFailure.None, usage);
         }
         catch
         {
-            return null;
+            return (null, AiFailure.Other, null);
         }
     }
+
+    /// <summary>Reads the provider's rate-limit response headers (Groq/OpenAI
+    /// style) and builds a short "tokens/requests left today" string, or null
+    /// when the provider does not report them.</summary>
+    private static string? BuildUsage(HttpResponseMessage response, AiProvider provider)
+    {
+        var remTokens = Header(response, "x-ratelimit-remaining-tokens");
+        var remRequests = Header(response, "x-ratelimit-remaining-requests");
+        if (remTokens is null && remRequests is null)
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+        if (remTokens is not null)
+        {
+            parts.Add($"{FormatCount(remTokens)} tokens left");
+        }
+
+        if (remRequests is not null)
+        {
+            parts.Add($"{FormatCount(remRequests)} requests left");
+        }
+
+        var reset = Header(response, "x-ratelimit-reset-tokens")
+                    ?? Header(response, "x-ratelimit-reset-requests");
+        var text = $"{provider.DisplayName}: " + string.Join(" \u00b7 ", parts);
+        if (!string.IsNullOrWhiteSpace(reset))
+        {
+            text += $" (resets in {reset})";
+        }
+
+        // Cache a compact form (no provider name) for the model picker dropdown.
+        var compact = string.Join(" \u00b7 ", parts)
+            .Replace(" tokens left", " tok")
+            .Replace(" requests left", " req");
+        LastUsageById[provider.Id] = compact;
+
+        return text;
+    }
+
+    private static string? Header(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues(name, out var values)
+            ? values.FirstOrDefault()
+            : null;
+
+    private static string FormatCount(string raw) =>
+        long.TryParse(raw, out var n) ? n.ToString("N0") : raw;
 
     /// <summary>
     /// Finds the built-in question whose text overlaps most with the query and

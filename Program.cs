@@ -133,11 +133,11 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var model = form["model"].ToString();
 
         using var assistant = new StudyAssistant(config);
-        var (answer, source) = await assistant.AnswerAsync(question, model);
+        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model);
 
         var selected = config.GetProvider(model).Id;
         var html = AskPage.Render(question, answer, source, config.HasOpenAi,
-            config.Providers, selected);
+            config.Providers, selected, notice, usage);
         return Results.Content(html, "text/html");
     });
 
@@ -150,8 +150,8 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var model = form["model"].ToString();
 
         using var assistant = new StudyAssistant(config);
-        var (answer, source) = await assistant.AnswerAsync(question, model);
-        return Results.Json(new { answer, source, html = AnswerFormat.ToHtml(answer) });
+        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model);
+        return Results.Json(new { answer, source, notice, usage, html = AnswerFormat.ToHtml(answer) });
     });
 
     // Mock interview: answer a question, get coached, then face a follow-up.
