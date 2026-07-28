@@ -114,7 +114,10 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
     var app = builder.Build();
     var rng = new Random();
 
-    app.MapGet("/", () => Results.Redirect("/ask"));
+    app.MapGet("/", () => Results.Redirect("/intro"));
+
+    // Landing page: a polished self-introduction to read, rehearse, and copy.
+    app.MapGet("/intro", () => Results.Content(IntroPage.Render(), "text/html"));
 
     // Ask & Learn: type any technical question, get an explained answer to study.
     app.MapGet("/ask", () =>
