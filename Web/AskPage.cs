@@ -43,6 +43,7 @@ internal static class AskPage
         var prior = question ?? string.Empty;
         sb.Append($"<textarea class=\"q\" name=\"question\" id=\"q\" rows=\"3\" placeholder=\"e.g. What is the difference between an abstract class and an interface in C#?\">{WebUtility.HtmlEncode(prior)}</textarea>");
         AppendModelPicker(sb, models, selectedModel);
+
         sb.Append("<div class=\"actions\">");
         sb.Append("<button class=\"btn btn-primary\" type=\"submit\">Explain it to me</button>");
         sb.Append("<button class=\"btn btn-mic\" type=\"button\" id=\"micBtn\">\ud83c\udfa4 Speak your question</button>");
@@ -50,29 +51,17 @@ internal static class AskPage
         sb.Append("<button class=\"btn btn-pip\" type=\"button\" id=\"pipBtn\" title=\"Move the answer into a small private floating window only you can see\">\ud83d\udccc Answer in private window</button>");
         sb.Append("<span class=\"mic-status\" id=\"micStatus\"></span>");
         sb.Append("</div>");
-        sb.Append("</form>");
 
-        // Cover / decoy document: chosen in the browser (never uploaded). When
-        // "Hide for sharing" is on, this file fills the whole screen so a screen
-        // share shows only this document. Press Esc to return to the real app.
+        // Cover / decoy document sits right under the buttons, above the answer.
+        // The file is chosen in the browser and never uploaded; when "Hide for
+        // sharing" is on it fills the whole screen.
         sb.Append("<div class=\"coverrow\">");
         sb.Append("<label class=\"coverlabel\" for=\"coverFile\">\ud83d\udcc4 Cover document (shown on your screen while hidden):</label>");
         sb.Append("<input class=\"coverinput\" type=\"file\" id=\"coverFile\" accept=\"image/*,application/pdf,text/plain,.txt,.pdf,.png,.jpg,.jpeg,.gif,.webp\">");
         sb.Append("</div>");
-        sb.Append("<p class=\"coverhint\"><b>Interview mode:</b> pick your cover document, ask your question, then click <b>Answer in private window</b>. Your answer opens in a small floating window only <b>you</b> see, while this tab shows the cover document. In Teams, share <b>this browser tab/window</b> (not the whole screen) so the interviewer sees only the document. Press <b>Esc</b> or close the floating window to return. The file stays in your browser \u2014 it is never uploaded.</p>");
-        sb.Append("<p class=\"coverhint\"><b>Phone option:</b> open this app on your <b>phone</b> (same Wi-Fi \u2014 the phone address is printed in the terminal when the app starts). Ask and read answers on your phone while you share your PC screen normally, so nothing on the PC ever shows the answer.</p>");
+        sb.Append("</form>");
 
-        // Scannable QR code for the phone URL (only when a LAN address was found).
-        if (!string.IsNullOrEmpty(NetworkInfo.QrSvg))
-        {
-            sb.Append("<div class=\"qrcard\">");
-            sb.Append("<div class=\"qrtitle\">\ud83d\udcf1 Scan to open on your phone</div>");
-            sb.Append($"<div class=\"qrbox\">{NetworkInfo.QrSvg}</div>");
-            sb.Append($"<div class=\"qrurl\">{WebUtility.HtmlEncode(NetworkInfo.PhoneUrl ?? string.Empty)}</div>");
-            sb.Append("<div class=\"qrnote\">Same Wi-Fi \u00b7 read answers on your phone while you share your PC screen</div>");
-            sb.Append("</div>");
-        }
-
+        // Answer first, right under the question, so it is the focus.
         if (!string.IsNullOrWhiteSpace(answer))
         {
             sb.Append("<section class=\"acard\">");
@@ -87,6 +76,28 @@ internal static class AskPage
             sb.Append("<p>Type any technical question and get a simple explanation. " +
                       "Use it to study and understand \u2014 then practice saying it in your own words on the Practice page.</p></div>");
         }
+
+        // Sharing & phone helpers live BELOW the answer so they never push the
+        // answer down the page. QR code is last.
+        sb.Append("<div class=\"tools\">");
+        // Interview mode / Phone option tips hidden — they were showing on screen.
+        // sb.Append("<p class=\"coverhint\"><b>Interview mode:</b> pick your cover document, ask your question, then click <b>Answer in private window</b>. Your answer opens in a small floating window only <b>you</b> see, while this tab shows the cover document. In Teams, share <b>this browser tab/window</b> (not the whole screen) so the interviewer sees only the document. Press <b>Esc</b> or close the floating window to return. The file stays in your browser \u2014 it is never uploaded.</p>");
+        // sb.Append("<p class=\"coverhint\"><b>Phone option:</b> open this app on your <b>phone</b> (same Wi-Fi \u2014 the phone address is printed in the terminal when the app starts). Ask and read answers on your phone while you share your PC screen normally, so nothing on the PC ever shows the answer.</p>");
+
+        // Scannable QR code for the phone URL (only when a LAN address was found).
+        // Hidden for now — the QR was visible while sharing the screen. Re-enable
+        // by uncommenting the block below if you want the phone QR back.
+        // if (!string.IsNullOrEmpty(NetworkInfo.QrSvg))
+        // {
+        //     sb.Append("<div class=\"qrcard\">");
+        //     sb.Append("<div class=\"qrtitle\">\ud83d\udcf1 Scan to open on your phone</div>");
+        //     sb.Append($"<div class=\"qrbox\">{NetworkInfo.QrSvg}</div>");
+        //     sb.Append($"<div class=\"qrurl\">{WebUtility.HtmlEncode(NetworkInfo.PhoneUrl ?? string.Empty)}</div>");
+        //     sb.Append("<div class=\"qrnote\">Same Wi-Fi \u00b7 read answers on your phone while you share your PC screen</div>");
+        //     sb.Append("</div>");
+        // }
+
+        sb.Append("</div>");
 
         sb.Append("<p class=\"foot\">This is a study helper \u2014 use it to learn and understand, so the knowledge is truly yours.</p>");
         // Full-screen decoy overlay (hidden until the user turns on sharing mode).
@@ -178,25 +189,62 @@ internal static class AskPage
     private static void AppendPipScript(StringBuilder sb)
     {
         // Moves the answer card into a Document Picture-in-Picture window — a
-        // small always-on-top window that is SEPARATE from this tab. When you
-        // share only this tab/window in Teams, the floating answer is not part
-        // of the share, so only you see it while the interviewer sees the cover
-        // document. Chromium browsers (Chrome/Edge) only.
+        // small always-on-top window that is SEPARATE from this tab. It also gets
+        // its OWN question box + mic, so when the interviewer asks something you
+        // can type/speak it and read the answer right here, WITHOUT switching back
+        // to the shared tab. When you share only this tab/window in Teams, the
+        // floating window is not part of the share. Chromium browsers only.
         sb.Append("<script>(function(){");
         sb.Append("var pb=document.getElementById('pipBtn');");
         sb.Append("if(!pb)return;");
         sb.Append("if(!('documentPictureInPicture' in window)){pb.disabled=true;pb.textContent='\ud83d\udccc Private window (use Chrome/Edge)';pb.title='Your browser does not support the private floating window. Use Chrome or Edge.';return;}");
         sb.Append("var pipWin=null,placeholder=null;");
-        sb.Append("function restore(){var ac=pipWin?pipWin.document.querySelector('.acard'):null;if(ac&&placeholder){placeholder.parentNode.insertBefore(ac,placeholder);}if(placeholder){placeholder.remove();placeholder=null;}pb.classList.remove('active');pb.textContent='\ud83d\udccc Answer in private window';pipWin=null;if(window.__ipSetPrivacy)window.__ipSetPrivacy(false);}");
+        sb.Append("function currentModel(){var m=document.querySelector('select.model');return m?m.value:'';}");
+        // Ask the server (JSON) and render the answer inside the private window.
+        sb.Append("async function ask(q,win){");
+        sb.Append("var ansBox=win.document.getElementById('pipAnswer');");
+        sb.Append("if(!q||!q.trim()){return;}");
+        sb.Append("ansBox.innerHTML='<div class=\"src\">Thinking\u2026</div>';");
+        sb.Append("try{var fd=new FormData();fd.append('question',q);fd.append('model',currentModel());");
+        sb.Append("var r=await fetch('/ask-json',{method:'POST',body:new URLSearchParams(fd)});");
+        sb.Append("var d=await r.json();");
+        sb.Append("ansBox.innerHTML='<section class=\"acard\"><div class=\"src\">Answer \u00b7 '+(d.source||'')+'</div><div class=\"atext\">'+(d.html||'')+'</div></section>';");
+        sb.Append("}catch(e){ansBox.innerHTML='<div class=\"src\">Could not get an answer. Try again.</div>';}");
+        sb.Append("}");
+        // Build the mini ask UI (question box + Ask + mic + answer area) in the PiP window.
+        sb.Append("function buildUi(win){");
+        sb.Append("var wrap=win.document.createElement('div');");
+        sb.Append("var ta=win.document.createElement('textarea');ta.id='pipQ';ta.className='q';ta.rows=2;ta.placeholder='Type or speak the question the interviewer asked\u2026';");
+        sb.Append("var row=win.document.createElement('div');row.className='actions';");
+        sb.Append("var ask=win.document.createElement('button');ask.className='btn btn-primary';ask.type='button';ask.textContent='Answer';");
+        sb.Append("var mic=win.document.createElement('button');mic.className='btn btn-mic';mic.type='button';mic.textContent='\ud83c\udfa4 Speak';");
+        sb.Append("row.appendChild(ask);row.appendChild(mic);");
+        sb.Append("var ans=win.document.createElement('div');ans.id='pipAnswer';");
+        sb.Append("wrap.appendChild(ta);wrap.appendChild(row);wrap.appendChild(ans);");
+        sb.Append("win.document.body.appendChild(wrap);");
+        sb.Append("ask.addEventListener('click',function(){askNow(ta.value,win);});");
+        sb.Append("ta.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){askNow(ta.value,win);}});");
+        // Mic inside the private window (Web Speech API).
+        sb.Append("var SR=window.SpeechRecognition||window.webkitSpeechRecognition;");
+        sb.Append("if(!SR){mic.disabled=true;mic.textContent='\ud83c\udfa4 n/a';}else{");
+        sb.Append("var rec=new SR();rec.lang='en-US';rec.interimResults=true;rec.continuous=false;var listening=false,base='';");
+        sb.Append("mic.addEventListener('click',function(){if(listening){rec.stop();return;}base='';ta.value='';try{rec.start();}catch(e){}});");
+        sb.Append("rec.onstart=function(){listening=true;mic.textContent='\u23f9 Stop';};");
+        sb.Append("rec.onend=function(){listening=false;mic.textContent='\ud83c\udfa4 Speak';};");
+        sb.Append("rec.onresult=function(ev){var t='';for(var i=0;i<ev.results.length;i++){t+=ev.results[i][0].transcript;}ta.value=base+t;};");
+        sb.Append("}");
+        sb.Append("return ans;");
+        sb.Append("}");
+        sb.Append("function askNow(v,win){ask(v,win);}");
+        sb.Append("function restore(){if(placeholder){placeholder.remove();placeholder=null;}pb.classList.remove('active');pb.textContent='\ud83d\udccc Answer in private window';pipWin=null;if(window.__ipSetPrivacy)window.__ipSetPrivacy(false);}");
         sb.Append("pb.addEventListener('click',async function(){");
         sb.Append("if(pipWin){pipWin.close();return;}");
-        sb.Append("var ac=document.querySelector('.acard');");
-        sb.Append("if(!ac){alert('Ask a question first, then move the answer to the private window.');return;}");
-        sb.Append("try{pipWin=await documentPictureInPicture.requestWindow({width:460,height:600});}catch(e){return;}");
+        sb.Append("try{pipWin=await documentPictureInPicture.requestWindow({width:460,height:640});}catch(e){return;}");
         sb.Append("[].forEach.call(document.querySelectorAll('style,link[rel=\"stylesheet\"]'),function(n){pipWin.document.head.appendChild(n.cloneNode(true));});");
         sb.Append("pipWin.document.body.style.margin='0';pipWin.document.body.style.padding='16px';pipWin.document.body.style.background='#f1f5f9';");
-        sb.Append("placeholder=document.createElement('div');ac.parentNode.insertBefore(placeholder,ac);");
-        sb.Append("pipWin.document.body.appendChild(ac);");
+        sb.Append("var ansBox=buildUi(pipWin);");
+        // If the main tab already has an answer, show it in the private window too.
+        sb.Append("var ac=document.querySelector('.acard');if(ac){ansBox.innerHTML=ac.outerHTML;}");
         sb.Append("pb.classList.add('active');pb.textContent='\ud83d\udccc Close private window';");
         sb.Append("if(window.__ipSetPrivacy)window.__ipSetPrivacy(true);");
         sb.Append("pipWin.addEventListener('pagehide',restore);");
@@ -242,6 +290,7 @@ internal static class AskPage
         sb.Append(".coverlabel{font-size:13px;font-weight:700;color:#334155;}");
         sb.Append(".coverinput{font-size:13px;font-family:inherit;}");
         sb.Append(".coverhint{font-size:12px;color:#64748b;margin:8px 0 0;}");
+        sb.Append(".tools{margin-top:18px;padding-top:16px;border-top:1px solid #e2e8f0;}");
         sb.Append(".qrcard{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-top:14px;text-align:center;max-width:240px;box-shadow:0 1px 3px rgba(15,23,42,.06);}");
         sb.Append(".qrtitle{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;}");
         sb.Append(".qrbox{width:170px;height:170px;margin:0 auto;}");
