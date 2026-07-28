@@ -1,0 +1,30 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploys ONLY the InterviewPrep app as a single web service.
+# The app runs in --web mode and binds to http://0.0.0.0:$PORT (Render sets PORT).
+# It needs no database or persistent disk — the question bank is built in.
+#
+# The AI keys below are marked "sync: false", meaning Render does NOT read them
+# from this file. Set their real values in the Render Dashboard
+# (Service → Environment) so secrets are never committed to git.
+services:
+  - type: web
+    name: interview-prep-coach
+    runtime: docker
+    plan: free
+    region: oregon
+    # The repo has the project in the "InterviewPrep" subfolder, so the
+    # Dockerfile/csproj live there. Remove this line if they are at the repo root.
+    rootDir: InterviewPrep
+    healthCheckPath: /ask
+    envVars:
+      # Render injects its own PORT automatically; this is just a sane default.
+      - key: PORT
+        value: "10000"
+      # AI provider keys — set the real values in the Render Dashboard.
+      # Groq has a free tier and works out of the box.
+      - key: GROQ_API_KEY
+        sync: false
+      # Optional — only needed if you want ChatGPT answers (requires OpenAI billing).
+      - key: OPENAI_API_KEY
+        sync: false

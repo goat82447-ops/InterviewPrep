@@ -1,0 +1,17 @@
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\InterviewPrep.exe
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\appsettings.json
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\appsettings.Local.json
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\InterviewPrep.deps.json
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\InterviewPrep.runtimeconfig.json
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\InterviewPrep.dll
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\bin\Debug\net8.0\InterviewPrep.pdb
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.AssemblyInfoInputs.cache
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.AssemblyInfo.cs
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.csproj.CoreCompileInputs.cache
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.sourcelink.json
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.dll
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\refint\InterviewPrep.dll
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.pdb
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\InterviewPrep.genruntimeconfig.cache
+c:\Users\v-kbandoju\MedicineReminder\InterviewPrep\obj\Debug\net8.0\ref\InterviewPrep.dll
