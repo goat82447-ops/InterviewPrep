@@ -47,6 +47,7 @@ internal static class AskPage
         sb.Append("<button class=\"btn btn-primary\" type=\"submit\">Explain it to me</button>");
         sb.Append("<button class=\"btn btn-mic\" type=\"button\" id=\"micBtn\">\ud83c\udfa4 Speak your question</button>");
         sb.Append("<button class=\"btn btn-privacy\" type=\"button\" id=\"privacyBtn\" title=\"Hide the answer and mic while sharing your screen\">\ud83d\ude48 Hide for sharing</button>");
+        sb.Append("<button class=\"btn btn-pip\" type=\"button\" id=\"pipBtn\" title=\"Move the answer into a small private floating window only you can see\">\ud83d\udccc Answer in private window</button>");
         sb.Append("<span class=\"mic-status\" id=\"micStatus\"></span>");
         sb.Append("</div>");
         sb.Append("</form>");
@@ -58,7 +59,19 @@ internal static class AskPage
         sb.Append("<label class=\"coverlabel\" for=\"coverFile\">\ud83d\udcc4 Cover document (shown on your screen while hidden):</label>");
         sb.Append("<input class=\"coverinput\" type=\"file\" id=\"coverFile\" accept=\"image/*,application/pdf,text/plain,.txt,.pdf,.png,.jpg,.jpeg,.gif,.webp\">");
         sb.Append("</div>");
-        sb.Append("<p class=\"coverhint\">Pick a file, then click <b>Hide for sharing</b> to cover your screen with it. Press <b>Esc</b> to come back. The file stays in your browser \u2014 it is never uploaded.</p>");
+        sb.Append("<p class=\"coverhint\"><b>Interview mode:</b> pick your cover document, ask your question, then click <b>Answer in private window</b>. Your answer opens in a small floating window only <b>you</b> see, while this tab shows the cover document. In Teams, share <b>this browser tab/window</b> (not the whole screen) so the interviewer sees only the document. Press <b>Esc</b> or close the floating window to return. The file stays in your browser \u2014 it is never uploaded.</p>");
+        sb.Append("<p class=\"coverhint\"><b>Phone option:</b> open this app on your <b>phone</b> (same Wi-Fi \u2014 the phone address is printed in the terminal when the app starts). Ask and read answers on your phone while you share your PC screen normally, so nothing on the PC ever shows the answer.</p>");
+
+        // Scannable QR code for the phone URL (only when a LAN address was found).
+        if (!string.IsNullOrEmpty(NetworkInfo.QrSvg))
+        {
+            sb.Append("<div class=\"qrcard\">");
+            sb.Append("<div class=\"qrtitle\">\ud83d\udcf1 Scan to open on your phone</div>");
+            sb.Append($"<div class=\"qrbox\">{NetworkInfo.QrSvg}</div>");
+            sb.Append($"<div class=\"qrurl\">{WebUtility.HtmlEncode(NetworkInfo.PhoneUrl ?? string.Empty)}</div>");
+            sb.Append("<div class=\"qrnote\">Same Wi-Fi \u00b7 read answers on your phone while you share your PC screen</div>");
+            sb.Append("</div>");
+        }
 
         if (!string.IsNullOrWhiteSpace(answer))
         {
@@ -157,6 +170,37 @@ internal static class AskPage
         sb.Append("}");
         sb.Append("pb.addEventListener('click',function(){setPrivacy(!document.body.classList.contains('privacy'));});");
         sb.Append("document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('privacy')){setPrivacy(false);}});");
+        sb.Append("window.__ipSetPrivacy=setPrivacy;");
+        sb.Append("})();</script>");
+        AppendPipScript(sb);
+    }
+
+    private static void AppendPipScript(StringBuilder sb)
+    {
+        // Moves the answer card into a Document Picture-in-Picture window — a
+        // small always-on-top window that is SEPARATE from this tab. When you
+        // share only this tab/window in Teams, the floating answer is not part
+        // of the share, so only you see it while the interviewer sees the cover
+        // document. Chromium browsers (Chrome/Edge) only.
+        sb.Append("<script>(function(){");
+        sb.Append("var pb=document.getElementById('pipBtn');");
+        sb.Append("if(!pb)return;");
+        sb.Append("if(!('documentPictureInPicture' in window)){pb.disabled=true;pb.textContent='\ud83d\udccc Private window (use Chrome/Edge)';pb.title='Your browser does not support the private floating window. Use Chrome or Edge.';return;}");
+        sb.Append("var pipWin=null,placeholder=null;");
+        sb.Append("function restore(){var ac=pipWin?pipWin.document.querySelector('.acard'):null;if(ac&&placeholder){placeholder.parentNode.insertBefore(ac,placeholder);}if(placeholder){placeholder.remove();placeholder=null;}pb.classList.remove('active');pb.textContent='\ud83d\udccc Answer in private window';pipWin=null;if(window.__ipSetPrivacy)window.__ipSetPrivacy(false);}");
+        sb.Append("pb.addEventListener('click',async function(){");
+        sb.Append("if(pipWin){pipWin.close();return;}");
+        sb.Append("var ac=document.querySelector('.acard');");
+        sb.Append("if(!ac){alert('Ask a question first, then move the answer to the private window.');return;}");
+        sb.Append("try{pipWin=await documentPictureInPicture.requestWindow({width:460,height:600});}catch(e){return;}");
+        sb.Append("[].forEach.call(document.querySelectorAll('style,link[rel=\"stylesheet\"]'),function(n){pipWin.document.head.appendChild(n.cloneNode(true));});");
+        sb.Append("pipWin.document.body.style.margin='0';pipWin.document.body.style.padding='16px';pipWin.document.body.style.background='#f1f5f9';");
+        sb.Append("placeholder=document.createElement('div');ac.parentNode.insertBefore(placeholder,ac);");
+        sb.Append("pipWin.document.body.appendChild(ac);");
+        sb.Append("pb.classList.add('active');pb.textContent='\ud83d\udccc Close private window';");
+        sb.Append("if(window.__ipSetPrivacy)window.__ipSetPrivacy(true);");
+        sb.Append("pipWin.addEventListener('pagehide',restore);");
+        sb.Append("});");
         sb.Append("})();</script>");
     }
 
@@ -190,11 +234,20 @@ internal static class AskPage
         sb.Append(".btn-mic:disabled{opacity:.6;cursor:not-allowed;}");
         sb.Append(".btn-privacy{background:#f1f5f9;color:#334155;margin-left:8px;}.btn-privacy:hover{background:#e2e8f0;}");
         sb.Append(".btn-privacy.active{background:#0f172a;color:#fff;}");
+        sb.Append(".btn-pip{background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc;margin-left:8px;}.btn-pip:hover{background:#cffafe;}");
+        sb.Append(".btn-pip.active{background:#0e7490;color:#fff;border-color:#0e7490;}");
+        sb.Append(".btn-pip:disabled{opacity:.6;cursor:not-allowed;}");
         sb.Append("body.privacy .acard,body.privacy .btn-mic,body.privacy .mic-status{display:none;}");
         sb.Append(".coverrow{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;}");
         sb.Append(".coverlabel{font-size:13px;font-weight:700;color:#334155;}");
         sb.Append(".coverinput{font-size:13px;font-family:inherit;}");
         sb.Append(".coverhint{font-size:12px;color:#64748b;margin:8px 0 0;}");
+        sb.Append(".qrcard{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-top:14px;text-align:center;max-width:240px;box-shadow:0 1px 3px rgba(15,23,42,.06);}");
+        sb.Append(".qrtitle{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;}");
+        sb.Append(".qrbox{width:170px;height:170px;margin:0 auto;}");
+        sb.Append(".qrbox svg{width:100%;height:100%;display:block;}");
+        sb.Append(".qrurl{font-size:12px;font-weight:600;color:#0e7490;margin-top:8px;word-break:break-all;}");
+        sb.Append(".qrnote{font-size:11px;color:#94a3b8;margin-top:6px;}");
         sb.Append(".cover-overlay{display:none;position:fixed;inset:0;background:#fff;z-index:99999;}");
         sb.Append(".cover-body{width:100%;height:100%;}");
         sb.Append(".cover-img{width:100%;height:100%;object-fit:contain;background:#fff;}");
