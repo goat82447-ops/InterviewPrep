@@ -32,6 +32,24 @@ internal static class DrillsPage
         });
         var cardsJson = JsonSerializer.Serialize(cards);
 
+        // Yes/No quick-fire facts — answered with a single Yes or No, then a short why.
+        var yesNo = new object[]
+        {
+            new { q = "Is a DLL a reusable library that cannot run on its own?", a = true, why = "Right — a DLL is loaded by an EXE or another process; it has no entry point of its own." },
+            new { q = "Does an EXE have a Main entry point that starts the program?", a = true, why = "Yes — the EXE is the executable with the Main method that the OS launches." },
+            new { q = "In C#, are strings mutable?", a = false, why = "No — strings are immutable; any change creates a new string. Use StringBuilder for many edits." },
+            new { q = "Is a struct a value type in C#?", a = true, why = "Yes — structs are value types, stored on the stack / inline, and copied by value." },
+            new { q = "Does 'async' by itself make code run on a new thread?", a = false, why = "No — async/await is about not blocking; it does not create threads by itself." },
+            new { q = "Does Entity Framework Core support LINQ queries?", a = true, why = "Yes — you write LINQ and EF Core translates it to SQL." },
+            new { q = "Is dependency injection built into ASP.NET Core?", a = true, why = "Yes — there's a built-in DI container; you register services in Program.cs." },
+            new { q = "Does a GitHub Actions workflow run automatically on a pull request?", a = true, why = "Yes — with an 'on: pull_request' trigger it runs on every PR." },
+            new { q = "Do branch protection rules let you require a passing check before merge?", a = true, why = "Yes — you can require status checks and PR review before merging to main." },
+            new { q = "Is 'git push --force' safe to run on a shared main branch?", a = false, why = "No — it can overwrite others' commits; avoid force-push on shared branches." },
+            new { q = "Can Azure App Service host an ASP.NET Core web app?", a = true, why = "Yes — App Service is a common managed host for ASP.NET Core APIs and sites." },
+            new { q = "Is 'public' the default access level for a class member in C#?", a = false, why = "No — the default is private for class members." },
+        };
+        var yesNoJson = JsonSerializer.Serialize(yesNo);
+
         var sb = new StringBuilder();
         sb.Append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">");
         sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
@@ -60,6 +78,14 @@ internal static class DrillsPage
         sb.Append("<a class=\"chip active\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
         sb.Append("</div>");
+
+        // Mode toggle: flashcards vs. yes/no quick-fire.
+        sb.Append("<div class=\"modes\">");
+        sb.Append("<button class=\"mbtn active\" id=\"flashModeBtn\">\ud83c\udccf Flashcards</button>");
+        sb.Append("<button class=\"mbtn\" id=\"ynModeBtn\">\u2714\ufe0f Yes / No quick-fire</button>");
+        sb.Append("</div>");
+
+        sb.Append("<div id=\"flashWrap\">");
 
         // Topic chips
         sb.Append("<div class=\"topics\">");
@@ -95,13 +121,37 @@ internal static class DrillsPage
         sb.Append("<button class=\"btn btn-ghost\" id=\"restartBtn\">Start over</button>");
         sb.Append("</div></section>");
 
+        sb.Append("</div>"); // end flashWrap
+
+        // ---- Yes / No quick-fire ----
+        sb.Append("<div id=\"ynWrap\" style=\"display:none\">");
+        sb.Append("<section class=\"card\" id=\"yncard\">");
+        sb.Append("<div class=\"cmeta\"><span class=\"tag\">Quick-fire</span><span class=\"tag lvl\" id=\"ynprog\">0 / 0</span></div>");
+        sb.Append("<div class=\"front\" id=\"ynq\"></div>");
+        sb.Append("<div class=\"controls\" id=\"yncontrols\">");
+        sb.Append("<button class=\"btn btn-good\" id=\"ynYes\">\u2705 Yes</button>");
+        sb.Append("<button class=\"btn btn-again\" id=\"ynNo\">\u274c No</button>");
+        sb.Append("</div>");
+        sb.Append("<div class=\"back\" id=\"ynback\" style=\"display:none\"></div>");
+        sb.Append("<div class=\"controls\" id=\"ynnextrow\" style=\"display:none\">");
+        sb.Append("<button class=\"btn btn-primary\" id=\"ynNext\">Next \u2192</button>");
+        sb.Append("</div>");
+        sb.Append("<div class=\"score\" id=\"ynscore\"></div>");
+        sb.Append("</section>");
+        sb.Append("<section class=\"done\" id=\"yndone\" style=\"display:none\">");
+        sb.Append("<div class=\"done-emoji\">\ud83c\udf89</div><h3>Quick-fire complete</h3>");
+        sb.Append("<p id=\"yndoneMsg\"></p>");
+        sb.Append("<div class=\"controls\"><button class=\"btn btn-primary\" id=\"ynRestart\">Start over</button></div>");
+        sb.Append("</section>");
+        sb.Append("</div>"); // end ynWrap
+
         sb.Append("<p class=\"foot\">Say each answer out loud before you flip \u2014 repetition is what makes it automatic.</p>");
-        AppendScript(sb, cardsJson);
+        AppendScript(sb, cardsJson, yesNoJson);
         sb.Append("</main></body></html>");
         return sb.ToString();
     }
 
-    private static void AppendScript(StringBuilder sb, string cardsJson)
+    private static void AppendScript(StringBuilder sb, string cardsJson, string yesNoJson)
     {
         sb.Append("<script>");
         sb.Append("var ALL=").Append(cardsJson).Append(";");
@@ -129,6 +179,32 @@ internal static class DrillsPage
         sb.Append("document.getElementById('reviewBtn').addEventListener('click',function(){deck=missed.slice();missed=[];got=0;i=0;elDone.style.display='none';elCard.style.display='';show();});");
         sb.Append("document.getElementById('restartBtn').addEventListener('click',function(){deck=ALL.slice();missed=[];got=0;i=0;elDone.style.display='none';elCard.style.display='';show();});");
         sb.Append("show();");
+
+        // ---- Yes / No quick-fire ----
+        sb.Append("var YN=").Append(yesNoJson).Append(";");
+        sb.Append("var yn=YN.slice();var yi=0;var yGot=0;var answered=false;");
+        sb.Append("var ynq=document.getElementById('ynq');var ynback=document.getElementById('ynback');");
+        sb.Append("var ynctrls=document.getElementById('yncontrols');var ynnextrow=document.getElementById('ynnextrow');");
+        sb.Append("var ynprog=document.getElementById('ynprog');var ynscore=document.getElementById('ynscore');");
+        sb.Append("var yncard=document.getElementById('yncard');var yndone=document.getElementById('yndone');");
+        sb.Append("function ynShow(){if(yi>=yn.length){ynFinish();return;}var c=yn[yi];answered=false;");
+        sb.Append("ynq.innerHTML=esc(c.q);ynback.style.display='none';ynctrls.style.display='';ynnextrow.style.display='none';");
+        sb.Append("ynprog.textContent=(yi+1)+' / '+yn.length;ynscore.textContent='Correct: '+yGot;}");
+        sb.Append("function ynAnswer(val){if(answered)return;answered=true;var c=yn[yi];var ok=(val===c.a);if(ok)yGot++;");
+        sb.Append("ynback.className='back';ynback.style.display='';ynctrls.style.display='none';ynnextrow.style.display='';");
+        sb.Append("ynback.innerHTML='<div class=\\'say\\'>'+(ok?'\u2705 Correct':'\u274c Not quite')+' \u2014 answer is <b>'+(c.a?'Yes':'No')+'</b></div><div class=\\'pts\\'>'+esc(c.why)+'</div>';}");
+        sb.Append("document.getElementById('ynYes').addEventListener('click',function(){ynAnswer(true);});");
+        sb.Append("document.getElementById('ynNo').addEventListener('click',function(){ynAnswer(false);});");
+        sb.Append("document.getElementById('ynNext').addEventListener('click',function(){yi++;ynShow();});");
+        sb.Append("function ynFinish(){yncard.style.display='none';yndone.style.display='';");
+        sb.Append("document.getElementById('yndoneMsg').textContent='You got '+yGot+' of '+yn.length+' right.';}");
+        sb.Append("document.getElementById('ynRestart').addEventListener('click',function(){yn=YN.slice();yi=0;yGot=0;yndone.style.display='none';yncard.style.display='';ynShow();});");
+
+        // ---- Mode toggle ----
+        sb.Append("var flashWrap=document.getElementById('flashWrap');var ynWrap=document.getElementById('ynWrap');");
+        sb.Append("var flashModeBtn=document.getElementById('flashModeBtn');var ynModeBtn=document.getElementById('ynModeBtn');");
+        sb.Append("flashModeBtn.addEventListener('click',function(){flashWrap.style.display='';ynWrap.style.display='none';flashModeBtn.classList.add('active');ynModeBtn.classList.remove('active');});");
+        sb.Append("ynModeBtn.addEventListener('click',function(){flashWrap.style.display='none';ynWrap.style.display='';ynModeBtn.classList.add('active');flashModeBtn.classList.remove('active');ynShow();});");
         sb.Append("</script>");
     }
 
@@ -150,6 +226,10 @@ internal static class DrillsPage
         sb.Append(".chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#334155;text-decoration:none;}");
         sb.Append(".chip:hover{border-color:#0d9488;color:#0d9488;}");
         sb.Append(".chip.active{background:#0d9488;border-color:#0d9488;color:#fff;}");
+        sb.Append(".modes{display:flex;gap:8px;margin:0 0 18px;flex-wrap:wrap;}");
+        sb.Append(".mbtn{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:9px 16px;font-size:14px;font-weight:700;font-family:inherit;color:#334155;cursor:pointer;}");
+        sb.Append(".mbtn:hover{border-color:#0d9488;color:#0d9488;}");
+        sb.Append(".mbtn.active{background:#0d9488;border-color:#0d9488;color:#fff;}");
         sb.Append(".card{background:#fff;border-radius:16px;padding:26px;box-shadow:0 1px 3px rgba(15,23,42,.07);min-height:220px;}");
         sb.Append(".cmeta{display:flex;gap:8px;margin-bottom:14px;}");
         sb.Append(".tag{border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;background:#ccfbf1;color:#0f766e;}");
