@@ -37,7 +37,10 @@ public sealed class OpenAiCoach : IDisposable
             var system =
                 "You are a friendly technical interview coach. The user is not a native " +
                 "English speaker. In 2-3 short sentences, give warm, specific feedback on their " +
-                "answer, then one concrete tip to improve it. Be encouraging and simple.";
+                "answer, then one concrete tip to improve it. Be encouraging and simple. " +
+                "Base your feedback strictly on the model answer provided; if the user's answer " +
+                "is technically wrong or incomplete, gently point out the correct fact instead of " +
+                "praising an incorrect statement. Do not invent details not implied by the model answer.";
 
             var user =
                 $"Question: {question.Prompt}\n" +
@@ -52,7 +55,7 @@ public sealed class OpenAiCoach : IDisposable
                     new { role = "system", content = system },
                     new { role = "user", content = user },
                 },
-                temperature = 0.4,
+                temperature = 0.2,
             };
 
             using var request = new HttpRequestMessage(HttpMethod.Post, _config.OpenAiBaseUrl);
