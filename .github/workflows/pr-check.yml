@@ -1,0 +1,32 @@
+name: PR Check
+
+# Runs on every pull request (and on pushes to main) so no code
+# is merged unless it restores/builds cleanly first.
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & Test (.NET)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore InterviewPrep/InterviewPrep.csproj
+
+      - name: Build (Release)
+        run: dotnet build InterviewPrep/InterviewPrep.csproj --configuration Release --no-restore
