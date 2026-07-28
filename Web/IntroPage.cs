@@ -1,0 +1,128 @@
+using System.Text;
+
+namespace InterviewPrep.Web;
+
+/// <summary>Renders the landing page: a polished self-introduction the user can
+/// read, rehearse, and copy before an interview. Content is tailored to a
+/// full-stack .NET + Azure CI/CD focus.</summary>
+internal static class IntroPage
+{
+    public static string Render()
+    {
+        var sb = new StringBuilder();
+        sb.Append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">");
+        sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        sb.Append("<title>Self Introduction</title>");
+        sb.Append("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
+        sb.Append("<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">");
+        AppendStyles(sb);
+        sb.Append("</head><body>");
+
+        sb.Append("<header class=\"hero\"><div class=\"hero-inner\">");
+        sb.Append("<div class=\"brand\"><span class=\"logo\">\ud83d\ude4b</span><div>");
+        sb.Append("<div class=\"brand-name\">[Name]</div>");
+        sb.Append("<div class=\"brand-tag\">Senior .NET / Azure Full-Stack Developer \u00b7 ~8 years \u00b7 Hyderabad</div>");
+        sb.Append("</div></div>");
+        sb.Append("<span class=\"mode\">Interview-ready intro</span>");
+        sb.Append("</div></header>");
+
+        sb.Append("<main class=\"wrap\">");
+
+        // Nav
+        sb.Append("<div class=\"nav\">");
+        sb.Append("<a class=\"chip active\" href=\"/intro\">\ud83d\ude4b Self intro</a>");
+        sb.Append("<a class=\"chip\" href=\"/ask\">\ud83d\udca1 Ask &amp; Learn</a>");
+        sb.Append("<a class=\"chip\" href=\"/practice\">\ud83c\udf93 Practice questions</a>");
+        sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
+        sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
+        sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
+        sb.Append("</div>");
+
+        sb.Append("<p class=\"lead\">Read it a few times, then say it in your own words. " +
+                  "Full version for a relaxed opening, short version when the interviewer says " +
+                  "&ldquo;tell me about yourself&rdquo; and wants it crisp.</p>");
+
+        // ---- Full version ----
+        sb.Append("<section class=\"card\">");
+        sb.Append("<div class=\"cardhead\"><span class=\"badge\">Full version \u00b7 ~2 min</span>");
+        sb.Append("<button class=\"copy\" type=\"button\" data-copy=\"full\">\ud83d\udccb Copy</button></div>");
+        sb.Append("<div class=\"speech\" id=\"full\">");
+        sb.Append("<p>Hi, I'm <b>[Name]</b>, a Senior .NET and Azure <b>full-stack developer</b> with around <b>8 years</b> of experience building and maintaining scalable enterprise web applications. Currently I'm with <b>TCS, working for Microsoft</b> on the <b>Dynamics 365 Omnichannel (ACD)</b> platform.</p>");
+        sb.Append("<p>On the <b>backend</b>, I work with <b>C#, .NET 8, ASP.NET Core, Web API, and Entity Framework Core</b> \u2014 designing RESTful microservices with clean architecture, dependency injection, JWT / Azure AD authentication, Serilog logging, and centralized exception handling. On the <b>frontend</b>, I build responsive interfaces with <b>Angular, TypeScript, HTML, and CSS</b>, so I can own a feature end to end. My data layer is <b>SQL Server</b>, where I work with stored procedures, indexing, and query optimization.</p>");
+        sb.Append("<p>A big part of my work is <b>Azure and CI/CD</b>. I design and maintain build and release pipelines using <b>Azure DevOps and GitHub Actions</b>, deploy to <b>Azure App Services and Azure SQL</b>, and safeguard code quality with <b>branch protection rules and pull-request validation</b> across multiple GEOs.</p>");
+        sb.Append("<p>I really enjoy owning features from the database up to the UI, improving deployment reliability, and collaborating with global engineering teams. I'm looking for a <b>full-stack .NET + Azure</b> role where I can contribute to system design and cloud-native development while continuing to grow.</p>");
+        sb.Append("</div></section>");
+
+        // ---- Short version ----
+        sb.Append("<section class=\"card\">");
+        sb.Append("<div class=\"cardhead\"><span class=\"badge short\">Short version \u00b7 ~1 min</span>");
+        sb.Append("<button class=\"copy\" type=\"button\" data-copy=\"short\">\ud83d\udccb Copy</button></div>");
+        sb.Append("<div class=\"speech\" id=\"short\">");
+        sb.Append("<p>Hi, I'm <b>[Name]</b>, a Senior .NET and Azure full-stack developer with about <b>8 years</b> of experience. Currently I work at <b>TCS for Microsoft</b> on the Dynamics 365 Omnichannel platform.</p>");
+        sb.Append("<p>On the backend I use <b>C#, .NET 8, ASP.NET Core, Web API, and EF Core</b>; on the frontend <b>Angular and TypeScript</b>; and my database is <b>SQL Server</b>. I also design <b>CI/CD pipelines on Azure DevOps and GitHub Actions</b> and deploy to <b>Azure App Services</b>.</p>");
+        sb.Append("<p>I like owning features end to end and delivering reliable, cloud-based solutions, and I'm looking for a <b>full-stack .NET + Azure</b> role where I can grow in system design and cloud.</p>");
+        sb.Append("</div></section>");
+
+        // ---- Quick tips ----
+        sb.Append("<section class=\"card tips\">");
+        sb.Append("<div class=\"tiptitle\">\u2728 Delivery tips</div>");
+        sb.Append("<ul>");
+        sb.Append("<li>Lead with your <b>name, years, and current project</b> \u2014 then your stack.</li>");
+        sb.Append("<li>Say <b>&ldquo;full-stack&rdquo;</b> early so they slot you into full-stack rounds.</li>");
+        sb.Append("<li>Mention <b>Azure + CI/CD</b> as a strength, but keep automation brief unless asked.</li>");
+        sb.Append("<li>End with what you <b>want next</b> \u2014 it signals direction and confidence.</li>");
+        sb.Append("<li>Practice it out loud on the <a href=\"/mock\">Mock interview</a> page.</li>");
+        sb.Append("</ul></section>");
+
+        sb.Append("<p class=\"foot\">Know it well enough to say it naturally \u2014 not memorised word for word.</p>");
+        AppendCopyScript(sb);
+        sb.Append("</main></body></html>");
+        return sb.ToString();
+    }
+
+    private static void AppendCopyScript(StringBuilder sb)
+    {
+        sb.Append("<script>(function(){");
+        sb.Append("document.querySelectorAll('.copy').forEach(function(b){b.addEventListener('click',function(){");
+        sb.Append("var el=document.getElementById(b.getAttribute('data-copy'));if(!el)return;");
+        sb.Append("var text=el.innerText||el.textContent;");
+        sb.Append("navigator.clipboard.writeText(text).then(function(){var o=b.textContent;b.textContent='\u2705 Copied';setTimeout(function(){b.textContent=o;},1500);});");
+        sb.Append("});});");
+        sb.Append("})();</script>");
+    }
+
+    private static void AppendStyles(StringBuilder sb)
+    {
+        sb.Append("<style>");
+        sb.Append("*{box-sizing:border-box;}");
+        sb.Append("body{font-family:'Inter',Segoe UI,Arial,sans-serif;background:#f1f5f9;color:#0f172a;margin:0;}");
+        sb.Append(".hero{background:linear-gradient(120deg,#0891b2,#2563eb);color:#fff;padding:26px 24px;}");
+        sb.Append(".hero-inner{max-width:820px;margin:auto;display:flex;align-items:center;gap:16px;}");
+        sb.Append(".brand{display:flex;align-items:center;gap:14px;flex:1;}");
+        sb.Append(".logo{font-size:34px;}");
+        sb.Append(".brand-name{font-size:22px;font-weight:800;letter-spacing:-.3px;}");
+        sb.Append(".brand-tag{font-size:13px;opacity:.9;margin-top:2px;}");
+        sb.Append(".mode{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}");
+        sb.Append(".wrap{max-width:820px;margin:-14px auto 40px;padding:0 24px;}");
+        sb.Append(".nav{display:flex;gap:8px;margin:22px 0 16px;flex-wrap:wrap;}");
+        sb.Append(".chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#334155;text-decoration:none;}");
+        sb.Append(".chip:hover{border-color:#0891b2;color:#0891b2;}");
+        sb.Append(".chip.active{background:#0891b2;border-color:#0891b2;color:#fff;}");
+        sb.Append(".lead{color:#475569;font-size:14.5px;line-height:1.6;margin:6px 0 18px;}");
+        sb.Append(".card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 3px rgba(15,23,42,.07);margin-bottom:16px;}");
+        sb.Append(".cardhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;}");
+        sb.Append(".badge{background:#ecfeff;color:#0e7490;border:1px solid #a5f3fc;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;}");
+        sb.Append(".badge.short{background:#f0fdf4;color:#15803d;border-color:#bbf7d0;}");
+        sb.Append(".copy{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:7px 12px;font-size:13px;font-weight:700;font-family:inherit;color:#334155;cursor:pointer;}");
+        sb.Append(".copy:hover{background:#e2e8f0;}");
+        sb.Append(".speech p{font-size:15.5px;line-height:1.7;margin:0 0 12px;}");
+        sb.Append(".speech p:last-child{margin-bottom:0;}");
+        sb.Append(".tips .tiptitle{font-size:15px;font-weight:800;margin-bottom:10px;}");
+        sb.Append(".tips ul{margin:0;padding-left:20px;}");
+        sb.Append(".tips li{font-size:14px;line-height:1.7;color:#334155;}");
+        sb.Append(".tips a{color:#0891b2;font-weight:700;text-decoration:none;}");
+        sb.Append(".foot{color:#94a3b8;font-size:12px;text-align:center;margin-top:22px;}");
+        sb.Append("@media(max-width:560px){.hero-inner{flex-wrap:wrap;}}");
+        sb.Append("</style>");
+    }
+}
