@@ -141,9 +141,42 @@ internal static class AnswerFormat
         }
 
         var inList = false;
+        var inCode = false;
+        var code = new StringBuilder();
         foreach (var raw in text.Split('\n'))
         {
             var line = raw.Trim();
+
+            // A line starting with ``` toggles a fenced code block. Inside it we
+            // keep the original text (indentation, symbols) so code looks right.
+            if (line.StartsWith("```", StringComparison.Ordinal))
+            {
+                if (!inCode)
+                {
+                    if (inList)
+                    {
+                        sb.Append("</ol>");
+                        inList = false;
+                    }
+
+                    inCode = true;
+                    code.Clear();
+                }
+                else
+                {
+                    FlushCode(sb, code);
+                    inCode = false;
+                }
+
+                continue;
+            }
+
+            if (inCode)
+            {
+                code.Append(raw).Append('\n');
+                continue;
+            }
+
             if (line.Length == 0)
             {
                 continue;
@@ -171,10 +204,30 @@ internal static class AnswerFormat
             }
         }
 
+        if (inCode)
+        {
+            // Unterminated fence \u2014 still show what we captured as code.
+            FlushCode(sb, code);
+        }
+
         if (inList)
         {
             sb.Append("</ol>");
         }
+    }
+
+    /// <summary>Emits captured code as a monospace block, preserving whitespace.</summary>
+    private static void FlushCode(StringBuilder sb, StringBuilder code)
+    {
+        var body = code.ToString().Trim('\n');
+        if (body.Length == 0)
+        {
+            return;
+        }
+
+        sb.Append("<pre class=\"acode\"><code>");
+        sb.Append(WebUtility.HtmlEncode(body));
+        sb.Append("</code></pre>");
     }
 
     /// <summary>True when a line looks like a numbered point (e.g. "1." or "2)");
@@ -205,6 +258,12 @@ internal static class AnswerFormat
         sb.Append(".apoints{margin:8px 0 4px;padding-left:24px;}");
         sb.Append(".apoints li{margin:0 0 10px;padding-left:5px;line-height:1.62;}");
         sb.Append(".apoints li::marker{color:#0891b2;font-weight:800;}");
+
+        // Code block \u2014 dark monospace box for SQL/queries/code answers.
+        sb.Append(".acode{margin:10px 0;background:#0f172a;color:#e2e8f0;border-radius:10px;");
+        sb.Append("padding:12px 14px;overflow-x:auto;font-family:Consolas,'Courier New',monospace;");
+        sb.Append("font-size:14px;line-height:1.5;white-space:pre;}");
+        sb.Append(".acode code{font-family:inherit;background:none;color:inherit;padding:0;}");
 
         // Short answer \u2014 blue box at the top.
         sb.Append(".shortline{margin:0 0 14px;background:#eff6ff;border-left:4px solid #3b82f6;");
