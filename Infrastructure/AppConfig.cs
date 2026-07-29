@@ -91,6 +91,22 @@ public sealed class AppConfig
                 "openrouter", "OpenRouter \u00b7 Llama 3.3 70B (free)", null,
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "https://openrouter.ai/api/v1/chat/completions"),
+            ["nvidia"] = new(
+                "nvidia", "NVIDIA \u00b7 Nemotron Super 49B (best, fast)", null,
+                "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "https://integrate.api.nvidia.com/v1/chat/completions"),
+            ["nvidia-nano"] = new(
+                "nvidia-nano", "NVIDIA \u00b7 Nemotron Nano 9B (fastest)", null,
+                "nvidia/nvidia-nemotron-nano-9b-v2",
+                "https://integrate.api.nvidia.com/v1/chat/completions"),
+            ["nvidia-llama70b"] = new(
+                "nvidia-llama70b", "NVIDIA \u00b7 Llama 3.1 70B (bigger, slower)", null,
+                "meta/llama-3.1-70b-instruct",
+                "https://integrate.api.nvidia.com/v1/chat/completions"),
+            ["nvidia-deepseek"] = new(
+                "nvidia-deepseek", "NVIDIA \u00b7 DeepSeek V4 Flash", null,
+                "deepseek-ai/deepseek-v4-flash",
+                "https://integrate.api.nvidia.com/v1/chat/completions"),
             ["ollama"] = new(
                 "ollama", "Ollama \u00b7 Llama 3.1 (local, no key)", "ollama",
                 "llama3.1", "http://localhost:11434/v1/chat/completions"),
@@ -98,7 +114,7 @@ public sealed class AppConfig
                 "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "gemini", "openrouter", "ollama", "openai" };
+        var order = new List<string> { "groq", "gemini", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
         foreach (var file in new[] { "appsettings.json", "appsettings.Local.json" })
@@ -188,11 +204,31 @@ public sealed class AppConfig
         ApplyEnvKey(byId, "groq", "GROQ_API_KEY");
         ApplyEnvKey(byId, "gemini", "GEMINI_API_KEY");
         ApplyEnvKey(byId, "openrouter", "OPENROUTER_API_KEY");
+        ApplyEnvKey(byId, "nvidia", "NVIDIA_API_KEY");
         ApplyEnvKey(byId, "openai", "OPENAI_API_KEY");
         var legacyEnv = Environment.GetEnvironmentVariable("OpenAi__ApiKey");
         if (!string.IsNullOrWhiteSpace(legacyEnv) && byId.TryGetValue("groq", out var g))
         {
             byId["groq"] = g with { ApiKey = legacyEnv };
+        }
+
+        // One NVIDIA key powers every NVIDIA model. Share the "nvidia" key (or
+        // the NVIDIA_API_KEY env var) with the other nvidia-* models so the user
+        // only configures the key once.
+        var nvidiaEnv = Environment.GetEnvironmentVariable("NVIDIA_API_KEY");
+        var nvidiaKey = !string.IsNullOrWhiteSpace(nvidiaEnv)
+            ? nvidiaEnv
+            : (byId.TryGetValue("nvidia", out var nv) ? nv.ApiKey : null);
+        if (!string.IsNullOrWhiteSpace(nvidiaKey))
+        {
+            foreach (var id in byId.Keys.Where(k =>
+                         k.StartsWith("nvidia", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
+                {
+                    byId[id] = byId[id] with { ApiKey = nvidiaKey };
+                }
+            }
         }
 
         var providers = order
