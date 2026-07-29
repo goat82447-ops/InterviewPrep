@@ -6,6 +6,10 @@ appsettings.Local.json
 conversation.json
 **/conversation.json
 
+# Saved answer cache (personal, per-machine)
+answers.json
+**/answers.json
+
 # Build output
 bin/
 obj/
