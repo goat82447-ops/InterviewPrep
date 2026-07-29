@@ -83,6 +83,12 @@ public sealed class AppConfig
             ["groq"] = new(
                 "groq", "Groq \u00b7 Llama 3.3 70B (free)", null,
                 "llama-3.3-70b-versatile", "https://api.groq.com/openai/v1/chat/completions"),
+            ["groq-compound"] = new(
+                "groq-compound", "Groq \u00b7 Compound (web-connected)", null,
+                "groq/compound", "https://api.groq.com/openai/v1/chat/completions"),
+            ["groq-gptoss"] = new(
+                "groq-gptoss", "Groq \u00b7 GPT-OSS 120B (free)", null,
+                "openai/gpt-oss-120b", "https://api.groq.com/openai/v1/chat/completions"),
             ["gemini"] = new(
                 "gemini", "Google Gemini \u00b7 2.0 Flash (free)", null,
                 "gemini-2.0-flash",
@@ -114,7 +120,7 @@ public sealed class AppConfig
                 "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "gemini", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
+        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
         foreach (var file in new[] { "appsettings.json", "appsettings.Local.json" })
@@ -227,6 +233,24 @@ public sealed class AppConfig
                 if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
                 {
                     byId[id] = byId[id] with { ApiKey = nvidiaKey };
+                }
+            }
+        }
+
+        // Likewise, one Groq key powers every Groq model (groq, groq-compound,
+        // groq-gptoss). Share the "groq" key with the other groq-* models.
+        var groqEnv = Environment.GetEnvironmentVariable("GROQ_API_KEY");
+        var groqKey = !string.IsNullOrWhiteSpace(groqEnv)
+            ? groqEnv
+            : (byId.TryGetValue("groq", out var gq) ? gq.ApiKey : null);
+        if (!string.IsNullOrWhiteSpace(groqKey))
+        {
+            foreach (var id in byId.Keys.Where(k =>
+                         k.StartsWith("groq", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
+                {
+                    byId[id] = byId[id] with { ApiKey = groqKey };
                 }
             }
         }
