@@ -146,8 +146,19 @@ internal static class AskPage
         // page so the whole screen looks like an ordinary empty browser.
         sb.Append("<div id=\"coverOverlay\" class=\"cover-overlay\">");
         sb.Append("<div id=\"coverDefault\" class=\"ntp\">");
+        sb.Append("<div class=\"ntp-top\"><span class=\"lnk\">Gmail</span><span class=\"lnk\">Images</span><span class=\"ntp-apps\">\u2637</span><span class=\"ntp-avatar\">G</span></div>");
+        sb.Append("<div class=\"ntp-center\">");
         sb.Append("<div class=\"ntp-logo\"><span style=\"color:#4285f4\">G</span><span style=\"color:#ea4335\">o</span><span style=\"color:#fbbc05\">o</span><span style=\"color:#4285f4\">g</span><span style=\"color:#34a853\">l</span><span style=\"color:#ea4335\">e</span></div>");
-        sb.Append("<div class=\"ntp-search\"><span class=\"ntp-ic\">\ud83d\udd0d</span><span class=\"ntp-ph\">Search Google or type a URL</span><span class=\"ntp-ic\">\ud83c\udf99\ufe0f</span></div>");
+        sb.Append("<div class=\"ntp-search\"><span class=\"ntp-ic\">+</span><span class=\"ntp-ph\">Search Google or type a URL</span><span class=\"ntp-ic\">\ud83c\udf99\ufe0f</span><span class=\"ntp-ic\">\ud83d\udcf7</span></div>");
+        sb.Append("<div class=\"ntp-tiles\">");
+        sb.Append("<div class=\"ntp-tile\"><div class=\"ntp-tico\" style=\"background:#2b3137\">GH</div><div class=\"ntp-tlbl\">GitHub</div></div>");
+        sb.Append("<div class=\"ntp-tile\"><div class=\"ntp-tico\" style=\"background:#ff0000\">\u25b6</div><div class=\"ntp-tlbl\">YouTube</div></div>");
+        sb.Append("<div class=\"ntp-tile\"><div class=\"ntp-tico\" style=\"background:#ea4335\">M</div><div class=\"ntp-tlbl\">Inbox</div></div>");
+        sb.Append("<div class=\"ntp-tile\"><div class=\"ntp-tico\" style=\"background:#10a37f\">AI</div><div class=\"ntp-tlbl\">ChatGPT</div></div>");
+        sb.Append("<div class=\"ntp-tile\"><div class=\"ntp-tico\" style=\"background:#5468ff\">R</div><div class=\"ntp-tlbl\">Render</div></div>");
+        sb.Append("<div class=\"ntp-tile\"><div class=\"ntp-tico\" style=\"background:#3c4043\">\u22ef</div><div class=\"ntp-tlbl\">Show more</div></div>");
+        sb.Append("</div>");
+        sb.Append("</div>");
         sb.Append("</div>");
         sb.Append("<div id=\"coverBody\" class=\"cover-body\"></div>");
         sb.Append("</div>");
@@ -244,6 +255,9 @@ internal static class AskPage
         sb.Append("}");
         sb.Append("pb.addEventListener('click',function(){setPrivacy(!document.body.classList.contains('privacy'));});");
         sb.Append("document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('privacy')){setPrivacy(false);}});");
+        // Double-click anywhere on the decoy to return to your app (the button is
+        // covered while hidden). Your question and answer are still there.
+        sb.Append("if(ov)ov.addEventListener('dblclick',function(){setPrivacy(false);});");
         sb.Append("window.__ipSetPrivacy=setPrivacy;");
         sb.Append("})();</script>");
         AppendPipScript(sb);
@@ -373,11 +387,20 @@ internal static class AskPage
         sb.Append(".cover-overlay{display:none;position:fixed;inset:0;background:#fff;z-index:99999;}");
         sb.Append(".cover-body{width:100%;height:100%;}");
         // Blank Chrome-style new-tab decoy (shown when no cover file is chosen).
-        sb.Append(".ntp{display:none;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;height:100%;background:#fff;padding-top:22vh;}");
-        sb.Append(".ntp-logo{font-family:'Product Sans',Arial,sans-serif;font-size:64px;font-weight:500;letter-spacing:-2px;margin-bottom:28px;}");
-        sb.Append(".ntp-search{display:flex;align-items:center;gap:12px;width:min(560px,90vw);height:48px;padding:0 18px;border:1px solid #dfe1e5;border-radius:24px;box-shadow:0 1px 6px rgba(32,33,36,.15);color:#5f6368;font-size:16px;font-family:Arial,sans-serif;}");
+        sb.Append(".ntp{display:none;flex-direction:column;width:100%;height:100%;background:#202124;color:#e8eaed;font-family:Arial,sans-serif;}");
+        sb.Append(".ntp-top{display:flex;align-items:center;justify-content:flex-end;gap:18px;padding:14px 24px;font-size:13px;}");
+        sb.Append(".ntp-top .lnk{color:#e8eaed;}");
+        sb.Append(".ntp-apps{font-size:18px;color:#9aa0a6;}");
+        sb.Append(".ntp-avatar{width:28px;height:28px;border-radius:50%;background:#e8710a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;}");
+        sb.Append(".ntp-center{flex:1;display:flex;flex-direction:column;align-items:center;padding-top:13vh;}");
+        sb.Append(".ntp-logo{font-family:'Product Sans',Arial,sans-serif;font-size:70px;font-weight:500;letter-spacing:-2px;margin-bottom:26px;}");
+        sb.Append(".ntp-search{display:flex;align-items:center;gap:14px;width:min(560px,90vw);height:48px;padding:0 18px;background:#303134;border:1px solid #5f6368;border-radius:26px;color:#9aa0a6;font-size:16px;}");
         sb.Append(".ntp-ph{flex:1;}");
-        sb.Append(".ntp-ic{font-size:18px;opacity:.8;}");
+        sb.Append(".ntp-ic{font-size:18px;opacity:.85;}");
+        sb.Append(".ntp-tiles{display:flex;gap:26px;margin-top:34px;flex-wrap:wrap;justify-content:center;max-width:640px;}");
+        sb.Append(".ntp-tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:76px;}");
+        sb.Append(".ntp-tico{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#fff;}");
+        sb.Append(".ntp-tlbl{font-size:12px;color:#e8eaed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px;}");
         sb.Append(".cover-img{width:100%;height:100%;object-fit:contain;background:#fff;}");
         sb.Append(".cover-frame{width:100%;height:100%;border:none;}");
         sb.Append(".cover-text{margin:0;padding:24px;font-family:Consolas,monospace;font-size:14px;white-space:pre-wrap;overflow:auto;height:100%;background:#fff;color:#0f172a;}");
