@@ -87,22 +87,50 @@ internal static class AnswerFormat
     }
 
     /// <summary>Finds the latest occurrence of any marker; returns its index and
-    /// the matched marker's length, or -1 if none are present.</summary>
+    /// the matched marker's length, or -1 if none are present. When a longer
+    /// marker overlaps a shorter one (e.g. "Real example:" contains "Example:"),
+    /// the longer, earlier-starting marker wins so no stray words are orphaned.</summary>
     private static int LastMarker(string text, string[] markers, out int matchedLength)
     {
-        var best = -1;
         matchedLength = 0;
+
+        // Last occurrence of each marker.
+        var matches = new List<(int idx, int len)>();
         foreach (var m in markers)
         {
             var i = text.LastIndexOf(m, StringComparison.OrdinalIgnoreCase);
-            if (i > best)
+            if (i >= 0)
             {
-                best = i;
-                matchedLength = m.Length;
+                matches.Add((i, m.Length));
             }
         }
 
-        return best;
+        if (matches.Count == 0)
+        {
+            return -1;
+        }
+
+        // Start from the latest match, then step back to any earlier match that
+        // overlaps it (a longer marker that contains this one).
+        var best = matches[0];
+        foreach (var mt in matches)
+        {
+            if (mt.idx > best.idx)
+            {
+                best = mt;
+            }
+        }
+
+        foreach (var mt in matches)
+        {
+            if (mt.idx < best.idx && mt.idx + mt.len > best.idx)
+            {
+                best = mt;
+            }
+        }
+
+        matchedLength = best.len;
+        return best.idx;
     }
 
     private static void AppendParagraphs(StringBuilder sb, string text)
