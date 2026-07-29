@@ -142,7 +142,15 @@ internal static class AskPage
 
         sb.Append("<p class=\"foot\">This is a study helper \u2014 use it to learn and understand, so the knowledge is truly yours.</p>");
         // Full-screen decoy overlay (hidden until the user turns on sharing mode).
-        sb.Append("<div id=\"coverOverlay\" class=\"cover-overlay\"><div id=\"coverBody\" class=\"cover-body\"></div></div>");
+        // When no cover document is chosen, it shows a blank Chrome-style new-tab
+        // page so the whole screen looks like an ordinary empty browser.
+        sb.Append("<div id=\"coverOverlay\" class=\"cover-overlay\">");
+        sb.Append("<div id=\"coverDefault\" class=\"ntp\">");
+        sb.Append("<div class=\"ntp-logo\"><span style=\"color:#4285f4\">G</span><span style=\"color:#ea4335\">o</span><span style=\"color:#fbbc05\">o</span><span style=\"color:#4285f4\">g</span><span style=\"color:#34a853\">l</span><span style=\"color:#ea4335\">e</span></div>");
+        sb.Append("<div class=\"ntp-search\"><span class=\"ntp-ic\">\ud83d\udd0d</span><span class=\"ntp-ph\">Search Google or type a URL</span><span class=\"ntp-ic\">\ud83c\udf99\ufe0f</span></div>");
+        sb.Append("</div>");
+        sb.Append("<div id=\"coverBody\" class=\"cover-body\"></div>");
+        sb.Append("</div>");
         AppendMicScript(sb);
         sb.Append("</main></body></html>");
         return sb.ToString();
@@ -212,6 +220,7 @@ internal static class AskPage
         sb.Append("var fi=document.getElementById('coverFile');");
         sb.Append("var ov=document.getElementById('coverOverlay');");
         sb.Append("var cb=document.getElementById('coverBody');");
+        sb.Append("var cd=document.getElementById('coverDefault');");
         sb.Append("var url=null;");
         sb.Append("function clearCover(){if(url){URL.revokeObjectURL(url);url=null;}if(cb)cb.innerHTML='';}");
         sb.Append("function hasCover(){return cb&&cb.children.length>0;}");
@@ -227,7 +236,11 @@ internal static class AskPage
         sb.Append("document.body.classList.toggle('privacy',on);");
         sb.Append("pb.classList.toggle('active',on);");
         sb.Append("pb.textContent=on?'\ud83d\udc41\ufe0f Show again':'\ud83d\ude48 Hide for sharing';");
-        sb.Append("if(ov)ov.style.display=(on&&hasCover())?'block':'none';");
+        // Always cover the whole screen when hiding: use the chosen document if
+        // there is one, otherwise the blank Chrome-style page.
+        sb.Append("if(ov)ov.style.display=on?'block':'none';");
+        sb.Append("if(cb)cb.style.display=(on&&hasCover())?'block':'none';");
+        sb.Append("if(cd)cd.style.display=(on&&!hasCover())?'flex':'none';");
         sb.Append("}");
         sb.Append("pb.addEventListener('click',function(){setPrivacy(!document.body.classList.contains('privacy'));});");
         sb.Append("document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('privacy')){setPrivacy(false);}});");
@@ -359,6 +372,12 @@ internal static class AskPage
         sb.Append(".qrnote{font-size:11px;color:#94a3b8;margin-top:6px;}");
         sb.Append(".cover-overlay{display:none;position:fixed;inset:0;background:#fff;z-index:99999;}");
         sb.Append(".cover-body{width:100%;height:100%;}");
+        // Blank Chrome-style new-tab decoy (shown when no cover file is chosen).
+        sb.Append(".ntp{display:none;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;height:100%;background:#fff;padding-top:22vh;}");
+        sb.Append(".ntp-logo{font-family:'Product Sans',Arial,sans-serif;font-size:64px;font-weight:500;letter-spacing:-2px;margin-bottom:28px;}");
+        sb.Append(".ntp-search{display:flex;align-items:center;gap:12px;width:min(560px,90vw);height:48px;padding:0 18px;border:1px solid #dfe1e5;border-radius:24px;box-shadow:0 1px 6px rgba(32,33,36,.15);color:#5f6368;font-size:16px;font-family:Arial,sans-serif;}");
+        sb.Append(".ntp-ph{flex:1;}");
+        sb.Append(".ntp-ic{font-size:18px;opacity:.8;}");
         sb.Append(".cover-img{width:100%;height:100%;object-fit:contain;background:#fff;}");
         sb.Append(".cover-frame{width:100%;height:100%;border:none;}");
         sb.Append(".cover-text{margin:0;padding:24px;font-family:Consolas,monospace;font-size:14px;white-space:pre-wrap;overflow:auto;height:100%;background:#fff;color:#0f172a;}");
