@@ -41,7 +41,13 @@ public sealed class StudyAssistant : IDisposable
     public readonly record struct ChatTurn(string Role, string Content);
 
     private static readonly object ConvLock = new();
-    private static readonly List<ChatTurn> Conversation = new();
+
+    // Chat is saved to this small file so follow-up context survives an app
+    // restart. It lives at the project root and is git-ignored (personal data).
+    private static readonly string ConvFile =
+        Path.Combine(ProjectPaths.ProjectRoot, "conversation.json");
+
+    private static readonly List<ChatTurn> Conversation = LoadConversation();
     private const int MaxHistoryMessages = 6; // ~3 back-and-forth exchanges
 
     /// <summary>The current chat transcript (oldest first).</summary>
@@ -59,6 +65,7 @@ public sealed class StudyAssistant : IDisposable
         lock (ConvLock)
         {
             Conversation.Clear();
+            SaveConversation();
         }
     }
 
@@ -80,6 +87,51 @@ public sealed class StudyAssistant : IDisposable
             {
                 Conversation.RemoveAt(0);
             }
+
+            SaveConversation();
+        }
+    }
+
+    /// <summary>Loads the saved chat from disk (best-effort). Returns an empty
+    /// list if the file is missing or unreadable, so the app always starts.</summary>
+    private static List<ChatTurn> LoadConversation()
+    {
+        try
+        {
+            if (File.Exists(ConvFile))
+            {
+                var saved = JsonSerializer.Deserialize<List<ChatTurn>>(
+                    File.ReadAllText(ConvFile));
+                if (saved is not null)
+                {
+                    if (saved.Count > MaxHistoryMessages)
+                    {
+                        saved.RemoveRange(0, saved.Count - MaxHistoryMessages);
+                    }
+
+                    return saved;
+                }
+            }
+        }
+        catch
+        {
+            // Missing or corrupt file \u2014 just start with an empty chat.
+        }
+
+        return new List<ChatTurn>();
+    }
+
+    /// <summary>Writes the current chat to disk (best-effort). Callers hold
+    /// <see cref="ConvLock"/>. Disk errors are ignored so answering never fails.</summary>
+    private static void SaveConversation()
+    {
+        try
+        {
+            File.WriteAllText(ConvFile, JsonSerializer.Serialize(Conversation));
+        }
+        catch
+        {
+            // Persisting is best-effort; ignore disk errors.
         }
     }
 
