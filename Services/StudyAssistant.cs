@@ -135,6 +135,90 @@ public sealed class StudyAssistant : IDisposable
         }
     }
 
+    // ----- Answer cache (skip the AI for a repeated question) ----------------
+    // Every answered question is saved with its answer. If the SAME question is
+    // asked again from a fresh start, we return the saved answer instantly and
+    // do NOT spend an API request \u2014 this saves the free Groq/NVIDIA quota and
+    // is faster. Follow-up questions (which have earlier context) always go live.
+
+    /// <summary>One saved question and its answer.</summary>
+    public readonly record struct CachedAnswer(string Question, string Answer, string Source);
+
+    private static readonly object CacheLock = new();
+    private static readonly string CacheFile =
+        Path.Combine(ProjectPaths.ProjectRoot, "answers.json");
+    private static readonly Dictionary<string, CachedAnswer> AnswerCache = LoadCache();
+
+    /// <summary>Normalizes a question so small differences (case, spacing, a
+    /// trailing '?') still count as the same question.</summary>
+    private static string CacheKey(string question)
+    {
+        var s = (question ?? string.Empty).ToLowerInvariant();
+        s = string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return s.TrimEnd('?', '.', '!', ' ');
+    }
+
+    /// <summary>Returns a saved answer for this question, if one exists.</summary>
+    private static bool TryGetCached(string question, out CachedAnswer cached)
+    {
+        var key = CacheKey(question);
+        lock (CacheLock)
+        {
+            return AnswerCache.TryGetValue(key, out cached);
+        }
+    }
+
+    /// <summary>Saves a fresh answer so the same question can be reused later.</summary>
+    private static void StoreCached(string question, string answer, string source)
+    {
+        var key = CacheKey(question);
+        if (key.Length == 0)
+        {
+            return;
+        }
+
+        lock (CacheLock)
+        {
+            AnswerCache[key] = new CachedAnswer(question, answer, source);
+            try
+            {
+                File.WriteAllText(CacheFile, JsonSerializer.Serialize(AnswerCache.Values.ToList()));
+            }
+            catch
+            {
+                // Persisting is best-effort; ignore disk errors.
+            }
+        }
+    }
+
+    private static Dictionary<string, CachedAnswer> LoadCache()
+    {
+        try
+        {
+            if (File.Exists(CacheFile))
+            {
+                var list = JsonSerializer.Deserialize<List<CachedAnswer>>(
+                    File.ReadAllText(CacheFile));
+                if (list is not null)
+                {
+                    var map = new Dictionary<string, CachedAnswer>(StringComparer.Ordinal);
+                    foreach (var c in list)
+                    {
+                        map[CacheKey(c.Question)] = c;
+                    }
+
+                    return map;
+                }
+            }
+        }
+        catch
+        {
+            // Missing or corrupt cache \u2014 just start empty.
+        }
+
+        return new Dictionary<string, CachedAnswer>(StringComparer.Ordinal);
+    }
+
     public StudyAssistant(AppConfig config)
     {
         _config = config;
@@ -178,12 +262,22 @@ public sealed class StudyAssistant : IDisposable
         // Snapshot the running chat so follow-up questions keep their context.
         var history = SnapshotHistory();
 
+        // If this exact question was answered before AND we are starting fresh
+        // (no ongoing conversation), reuse the saved answer instead of spending
+        // an API request. Follow-ups (history present) always get a live answer.
+        if (history.Length == 0 && TryGetCached(question, out var cached))
+        {
+            RecordTurn(question, cached.Answer);
+            return (cached.Answer, cached.Source + " \u00b7 saved", null, null);
+        }
+
         foreach (var p in tryOrder)
         {
             var (ai, failure, usage) = await AskOpenAiAsync(question, p, history, ct);
             if (!string.IsNullOrWhiteSpace(ai))
             {
                 RecordTurn(question, ai!);
+                StoreCached(question, ai!, p.DisplayName);
                 return (ai!, p.DisplayName, null, usage);
             }
 
