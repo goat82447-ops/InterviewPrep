@@ -23,10 +23,53 @@ public sealed class MockInterview : IDisposable
     private readonly HttpClient _http;
     private readonly Random _rng = new();
 
+    /// <summary>One question the interviewer asked and how the candidate replied.</summary>
+    private readonly record struct Exchange(string Question, string Answer);
+
+    // The running interview transcript, shared across requests so the AI can ask
+    // follow-ups that build on everything said so far (a real interview remembers).
+    private static readonly object ConvLock = new();
+    private static readonly List<Exchange> History = new();
+    private const int MaxExchanges = 8;
+
     public MockInterview(AppConfig config)
     {
         _config = config;
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+    }
+
+    /// <summary>Clears the transcript so the next question starts a fresh interview.</summary>
+    public static void ResetInterview()
+    {
+        lock (ConvLock)
+        {
+            History.Clear();
+        }
+    }
+
+    private static IReadOnlyList<Exchange> Snapshot()
+    {
+        lock (ConvLock)
+        {
+            return History.ToList();
+        }
+    }
+
+    private static void Record(string question, string answer)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+        {
+            return;
+        }
+
+        lock (ConvLock)
+        {
+            History.Add(new Exchange(question, answer));
+            if (History.Count > MaxExchanges)
+            {
+                History.RemoveRange(0, History.Count - MaxExchanges);
+            }
+        }
     }
 
     /// <summary>Picks an opening question for a topic (or a random topic).</summary>
@@ -55,21 +98,26 @@ public sealed class MockInterview : IDisposable
         question = (question ?? string.Empty).Trim();
         userAnswer = (userAnswer ?? string.Empty).Trim();
 
+        var history = Snapshot();
+
         var provider = _config.GetProvider(providerId);
         if (provider.HasKey)
         {
-            var ai = await AskAiAsync(topic, question, userAnswer, provider, ct);
+            var ai = await AskAiAsync(topic, question, userAnswer, history, provider, ct);
             if (ai is not null)
             {
+                Record(question, userAnswer);
                 return ai;
             }
         }
 
+        Record(question, userAnswer);
         return LocalTurn(topic, question, userAnswer);
     }
 
     private async Task<MockTurn?> AskAiAsync(
-        string topic, string question, string userAnswer, AiProvider provider, CancellationToken ct)
+        string topic, string question, string userAnswer,
+        IReadOnlyList<Exchange> history, AiProvider provider, CancellationToken ct)
     {
         try
         {
@@ -82,13 +130,30 @@ public sealed class MockInterview : IDisposable
                 "\"modelAnswer\" - how you would answer that same question out loud in an interview, " +
                 "first person, natural spoken tone, 3-6 sentences, ending with a short line that starts " +
                 "with 'Say it simply:'; " +
-                "\"followUp\" - one natural follow-up question that digs a little deeper into the same " +
-                "topic, exactly as a real interviewer would ask next. " +
+                "\"followUp\" - one natural follow-up question that builds on what the candidate has " +
+                "already said in this interview, digs a little deeper, and does NOT repeat an earlier " +
+                "question, exactly as a real interviewer would ask next. " +
                 "Do not add any text outside the JSON.";
 
+            var transcript = new StringBuilder();
+            if (history.Count > 0)
+            {
+                transcript.Append("Interview so far (oldest first):\n");
+                var n = 1;
+                foreach (var ex in history)
+                {
+                    transcript.Append($"Q{n}: {ex.Question}\n");
+                    transcript.Append($"A{n}: {(string.IsNullOrWhiteSpace(ex.Answer) ? "(no answer)" : ex.Answer)}\n");
+                    n++;
+                }
+
+                transcript.Append('\n');
+            }
+
             var user =
+                transcript.ToString() +
                 $"Topic: {topic}\n" +
-                $"Question you asked: {question}\n" +
+                $"Current question you asked: {question}\n" +
                 $"Candidate's answer: {(userAnswer.Length == 0 ? "(no answer given)" : userAnswer)}";
 
             var payload = new
