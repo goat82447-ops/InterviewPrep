@@ -86,7 +86,7 @@ public sealed class StudyAssistant : IDisposable
     public StudyAssistant(AppConfig config)
     {
         _config = config;
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
     }
 
     public async Task<(string answer, string source, string? notice, string? usage)> AnswerAsync(
@@ -425,6 +425,12 @@ public sealed class StudyAssistant : IDisposable
                 "3) FINALLY one line that starts with 'Real example:' giving ONE short, concrete, " +
                 "accurate real-world example (one sentence), ideally phrased like something from an " +
                 "actual project (e.g. 'On a recent project I...') that shows the concept in action.\n" +
+                "CODING / QUERY QUESTIONS: If the question asks you to WRITE or SHOW code, a SQL " +
+                "query, a snippet, or 'how do you implement/write' something, then ADAPT the middle " +
+                "part: keep the 'In short:' line, then put the ACTUAL, correct, runnable code inside a " +
+                "fenced code block using triple backticks (```), properly indented \u2014 not prose. " +
+                "After the code, add 1 to 3 short numbered points explaining the key parts, then the " +
+                "'Real example:' line. Give real working code, never vague pseudo-code unless asked.\n" +
                 "Keep the whole answer compact so it fits on one screen without scrolling. " +
                 "Speak in a natural first-person tone (not a dry textbook) and use simple, clear " +
                 "English because the person is not a native speaker. Do not add any other headings.";
