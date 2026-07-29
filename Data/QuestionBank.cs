@@ -11,6 +11,12 @@ public static class QuestionBank
 {
     private static readonly List<Question> All = Build();
 
+    // AI-generated questions live here (keyed by Id) so the /answer scorer can
+    // find them by Id just like the built-in bank. Ids start high to never clash
+    // with the built-in questions.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, Question> Generated = new();
+    private static int _generatedId = 100_000;
+
     public static IReadOnlyList<Question> Questions => All;
 
     public static IReadOnlyList<string> Topics =>
@@ -19,7 +25,19 @@ public static class QuestionBank
     public static IReadOnlyList<Question> ForTopic(string topic) =>
         All.Where(q => q.Topic.Equals(topic, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    public static Question? ById(int id) => All.FirstOrDefault(q => q.Id == id);
+    public static Question? ById(int id) =>
+        All.FirstOrDefault(q => q.Id == id)
+        ?? (Generated.TryGetValue(id, out var g) ? g : null);
+
+    /// <summary>Stores an AI-generated question and returns it with a fresh Id.</summary>
+    public static Question RegisterGenerated(
+        string topic, Level level, string prompt, string answer, string simple, IReadOnlyList<string> points)
+    {
+        var id = System.Threading.Interlocked.Increment(ref _generatedId);
+        var q = new Question(id, topic, level, prompt, answer, simple, points);
+        Generated[id] = q;
+        return q;
+    }
 
     private static List<Question> Build()
     {
@@ -30,6 +48,12 @@ public static class QuestionBank
             list.Add(new Question(id++, topic, level, prompt, answer, simple, points));
 
         // ---------------- C# ----------------
+        Add("C#", Level.Easy,
+            "What is the difference between a DLL and an EXE in C#?",
+            "Both are compiled .NET assemblies, but an EXE is an executable program with an entry point (the Main method) that the OS can start and run on its own. A DLL (Dynamic Link Library) is a library of reusable code that has no entry point, so it cannot run by itself; it is loaded into a host process (an EXE or another DLL) and its types/methods are called from there. You build an EXE when you need a runnable application, and a DLL when you want to share code across many applications. An EXE runs as its own process; a DLL runs inside the process that loads it, so many programs can share one DLL.",
+            "An EXE is a program you can run - it has a Main entry point. A DLL is a library of shared code with no entry point, so it can't run alone; another program loads and uses it. I make an EXE to run an app, a DLL to reuse code.",
+            "assembly", "entry point", "main", "executable", "library", "reusable", "process");
+
         Add("C#", Level.Easy,
             "What is the difference between a class and a struct in C#?",
             "A class is a reference type stored on the heap; variables hold a reference, so copies share the same instance. A struct is a value type usually stored inline/on the stack; assigning it copies the whole value. Use structs for small, short-lived data; use classes for most objects, especially when you need inheritance or shared identity.",

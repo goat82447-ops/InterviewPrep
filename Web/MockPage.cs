@@ -173,9 +173,9 @@ internal static class MockPage
         sb.Append(".mic-status{margin-left:10px;font-size:13px;color:#db2777;font-weight:600;}");
         sb.Append(".fb{background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:16px 20px;margin-top:8px;}");
         sb.Append(".fbtext{font-size:15px;line-height:1.6;color:#7c2d12;}");
-        sb.Append(".acard{background:#fff;border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.07);margin-top:14px;}");
+        sb.Append(".acard{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 3px rgba(15,23,42,.07);margin-top:14px;border-left:5px solid #10b981;}");
         sb.Append(".src{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#db2777;margin-bottom:10px;}");
-        sb.Append(".atext{font-size:15.5px;line-height:1.65;}");
+        sb.Append(".atext{font-size:17.5px;line-height:1.75;color:#0f172a;}");
         AnswerFormat.AppendSayStyles(sb);
         sb.Append(".foot{color:#94a3b8;font-size:12px;text-align:center;margin-top:22px;}");
         sb.Append("@media(max-width:560px){.hero-inner{flex-wrap:wrap;}}");

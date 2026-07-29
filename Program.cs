@@ -154,11 +154,24 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.Json(new { answer, source, notice, usage, html = AnswerFormat.ToHtml(answer) });
     });
 
+    // Start a fresh topic — forget the running chat so the next question has no
+    // earlier context. Used by the "New topic" button on the Ask page.
+    app.MapPost("/ask/reset", () =>
+    {
+        StudyAssistant.ClearConversation();
+        return Results.Redirect("/ask");
+    });
+
     // Mock interview: answer a question, get coached, then face a follow-up.
     app.MapGet("/mock", (HttpRequest request) =>
     {
         var topic = request.Query["topic"].ToString();
         var model = request.Query["model"].ToString();
+
+        // Opening a fresh mock (or switching topic) starts a brand-new interview,
+        // so the AI interviewer's memory does not carry over from a past session.
+        MockInterview.ResetInterview();
+
         using var mock = new MockInterview(config);
         var question = mock.FirstQuestion(topic);
         var shownTopic = string.IsNullOrWhiteSpace(topic) ? null : topic;
@@ -212,6 +225,29 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.Content(html, "text/html");
     });
 
+    // Generate a FRESH question with the AI, tailored to the situation the user
+    // typed (topic, role, job description, difficulty). Each request gives a new
+    // question so "Next question" keeps producing different ones.
+    app.MapPost("/practice/generate", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var situation = new PracticeSituation(
+            Topic: form["gtopic"].ToString(),
+            Role: form["grole"].ToString(),
+            JobDescription: form["gjd"].ToString(),
+            Difficulty: form["gdiff"].ToString());
+
+        using var assistant = new StudyAssistant(config);
+        var (questions, notice) = await assistant.GeneratePracticeQuestionsAsync(situation, 1);
+        var q = questions.Count > 0 ? questions[0] : null;
+        var shownTopic = q?.Topic
+            ?? (string.IsNullOrWhiteSpace(situation.Topic) ? "Custom" : situation.Topic);
+
+        var html = PracticePage.Render(
+            shownTopic, q, feedback: null, aiNote: null, config.HasOpenAi, situation, notice);
+        return Results.Content(html, "text/html");
+    });
+
     // Score a submitted answer.
     app.MapPost("/answer", async (HttpRequest request) =>
     {
@@ -234,7 +270,19 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
             aiNote = await coach.CritiqueAsync(q, answer);
         }
 
-        var html = PracticePage.Render(q.Topic, q, fb, aiNote, config.HasOpenAi);
+        // Carry the AI "situation" (if this was a generated question) so the panel
+        // stays filled and "Next question" can regenerate with the same context.
+        var gtopic = form["gtopic"].ToString();
+        var grole = form["grole"].ToString();
+        var gjd = form["gjd"].ToString();
+        var gdiff = form["gdiff"].ToString();
+        PracticeSituation? situation =
+            string.IsNullOrWhiteSpace(gtopic) && string.IsNullOrWhiteSpace(grole)
+            && string.IsNullOrWhiteSpace(gjd) && string.IsNullOrWhiteSpace(gdiff)
+                ? null
+                : new PracticeSituation(gtopic, grole, gjd, gdiff);
+
+        var html = PracticePage.Render(q.Topic, q, fb, aiNote, config.HasOpenAi, situation);
         return Results.Content(html, "text/html");
     });
 

@@ -13,7 +13,9 @@ internal static class PracticePage
         Question? question,
         Feedback? feedback,
         string? aiNote,
-        bool aiEnabled)
+        bool aiEnabled,
+        PracticeSituation? situation = null,
+        string? notice = null)
     {
         var sb = new StringBuilder();
         sb.Append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">");
@@ -56,11 +58,18 @@ internal static class PracticePage
         sb.Append("<a class=\"chip\" href=\"/practice\">\ud83c\udfb2 Random</a>");
         sb.Append("</div>");
 
+        AppendGenPanel(sb, situation, aiEnabled);
+
+        if (!string.IsNullOrWhiteSpace(notice))
+        {
+            sb.Append($"<div class=\"gp-notice\">{WebUtility.HtmlEncode(notice)}</div>");
+        }
+
         if (question is null)
         {
-            sb.Append("<div class=\"empty\"><div class=\"empty-emoji\">\ud83d\udcac</div><h3>Pick a topic to start</h3>");
-            sb.Append("<p>You'll get a real interview question. Type your answer in your own words \u2014 " +
-                      "even simple English is fine \u2014 and you'll see how you did plus a strong model answer to learn from.</p></div>");
+            sb.Append("<div class=\"empty\"><div class=\"empty-emoji\">\ud83d\udcac</div><h3>Describe your situation above, or pick a topic</h3>");
+            sb.Append("<p>Use \u2728 <b>Generate a question with AI</b> to get a fresh question made just for your topic, " +
+                      "role or job description \u2014 with a strong model answer. Or pick a topic chip for a ready-made question.</p></div>");
             sb.Append("</main></body></html>");
             return sb.ToString();
         }
@@ -76,12 +85,21 @@ internal static class PracticePage
         // Answer form
         sb.Append("<form method=\"post\" action=\"/answer\">");
         sb.Append($"<input type=\"hidden\" name=\"id\" value=\"{question.Id}\">");
+        AppendSituationFields(sb, situation);
         var prior = feedback?.UserAnswer ?? string.Empty;
         sb.Append($"<textarea class=\"answer\" name=\"answer\" id=\"ans\" rows=\"5\" placeholder=\"Type or speak your answer here in your own words...\">{WebUtility.HtmlEncode(prior)}</textarea>");
         sb.Append("<div class=\"actions\">");
         sb.Append("<button class=\"btn btn-primary\" type=\"submit\">Check my answer</button>");
         sb.Append("<button class=\"btn btn-mic\" type=\"button\" id=\"micBtn\">\ud83c\udfa4 Speak your answer</button>");
-        sb.Append($"<a class=\"btn btn-ghost\" href=\"/practice?topic={WebUtility.UrlEncode(question.Topic)}\">Next question \u2192</a>");
+        if (situation is not null)
+        {
+            // AI question: "Next" regenerates a fresh one with the same situation.
+            sb.Append("<button class=\"btn btn-ghost\" type=\"submit\" formaction=\"/practice/generate\">Next question \u2192</button>");
+        }
+        else
+        {
+            sb.Append($"<a class=\"btn btn-ghost\" href=\"/practice?topic={WebUtility.UrlEncode(question.Topic)}\">Next question \u2192</a>");
+        }
         sb.Append("<span class=\"mic-status\" id=\"micStatus\"></span>");
         sb.Append("</div></form>");
         sb.Append("</section>");
@@ -128,6 +146,50 @@ internal static class PracticePage
         return sb.ToString();
     }
 
+    private static void AppendGenPanel(StringBuilder sb, PracticeSituation? s, bool aiEnabled)
+    {
+        var topic = WebUtility.HtmlEncode(s?.Topic ?? string.Empty);
+        var role = WebUtility.HtmlEncode(s?.Role ?? string.Empty);
+        var jd = WebUtility.HtmlEncode(s?.JobDescription ?? string.Empty);
+        var diff = s?.Difficulty ?? "Any";
+
+        sb.Append("<form class=\"genpanel\" method=\"post\" action=\"/practice/generate\">");
+        sb.Append("<div class=\"gp-title\">\u2728 Generate a question with AI \u2014 describe your situation</div>");
+        if (!aiEnabled)
+        {
+            sb.Append("<div class=\"gp-hint\">No AI key set yet \u2014 add a free one (see FREE_AI_KEYS.md) to turn this on.</div>");
+        }
+
+        sb.Append("<div class=\"gp-grid\">");
+        sb.Append($"<label>Topic / skill<input name=\"gtopic\" value=\"{topic}\" placeholder=\"e.g. SQL joins, Azure, C# async\"></label>");
+        sb.Append($"<label>Role / seniority<input name=\"grole\" value=\"{role}\" placeholder=\"e.g. Senior .NET developer\"></label>");
+        sb.Append("<label>Difficulty<select name=\"gdiff\">");
+        foreach (var opt in new[] { "Any", "Easy", "Medium", "Hard" })
+        {
+            var sel = opt.Equals(diff, StringComparison.OrdinalIgnoreCase) ? " selected" : string.Empty;
+            sb.Append($"<option value=\"{opt}\"{sel}>{opt}</option>");
+        }
+        sb.Append("</select></label>");
+        sb.Append("</div>");
+
+        sb.Append($"<label class=\"gp-jd\">Job description (optional \u2014 paste it)<textarea name=\"gjd\" rows=\"3\" placeholder=\"Paste the job description here...\">{jd}</textarea></label>");
+        sb.Append("<button class=\"btn btn-primary gp-btn\" type=\"submit\">\u2728 Generate question</button>");
+        sb.Append("</form>");
+    }
+
+    private static void AppendSituationFields(StringBuilder sb, PracticeSituation? s)
+    {
+        if (s is null)
+        {
+            return;
+        }
+
+        sb.Append($"<input type=\"hidden\" name=\"gtopic\" value=\"{WebUtility.HtmlEncode(s.Topic ?? string.Empty)}\">");
+        sb.Append($"<input type=\"hidden\" name=\"grole\" value=\"{WebUtility.HtmlEncode(s.Role ?? string.Empty)}\">");
+        sb.Append($"<input type=\"hidden\" name=\"gdiff\" value=\"{WebUtility.HtmlEncode(s.Difficulty ?? string.Empty)}\">");
+        sb.Append($"<input type=\"hidden\" name=\"gjd\" value=\"{WebUtility.HtmlEncode(s.JobDescription ?? string.Empty)}\">");
+    }
+
     private static void AppendMicScript(StringBuilder sb)
     {
         // Browser Web Speech API transcribes YOUR spoken answer into the textbox.
@@ -167,6 +229,17 @@ internal static class PracticePage
         sb.Append(".chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#334155;text-decoration:none;}");
         sb.Append(".chip:hover{border-color:#7c3aed;color:#7c3aed;}");
         sb.Append(".chip.active{background:#7c3aed;border-color:#7c3aed;color:#fff;}");
+        sb.Append(".genpanel{background:linear-gradient(120deg,#faf5ff,#eff6ff);border:1px solid #ddd6fe;border-radius:16px;padding:18px 18px 16px;margin:0 0 18px;box-shadow:0 1px 3px rgba(15,23,42,.05);}");
+        sb.Append(".gp-title{font-size:15.5px;font-weight:800;color:#5b21b6;margin-bottom:12px;}");
+        sb.Append(".gp-hint{font-size:12.5px;color:#92400e;background:#fef3c7;border-radius:8px;padding:6px 10px;margin-bottom:12px;}");
+        sb.Append(".gp-grid{display:grid;grid-template-columns:1fr 1fr .8fr;gap:10px;}");
+        sb.Append("@media(max-width:640px){.gp-grid{grid-template-columns:1fr;}}");
+        sb.Append(".genpanel label{display:flex;flex-direction:column;font-size:12.5px;font-weight:700;color:#475569;gap:5px;}");
+        sb.Append(".genpanel input,.genpanel select,.genpanel textarea{border:1px solid #cbd5e1;border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;font-weight:500;color:#0f172a;background:#fff;}");
+        sb.Append(".gp-jd{margin-top:10px;}");
+        sb.Append(".gp-jd textarea{resize:vertical;}");
+        sb.Append(".gp-btn{margin-top:12px;}");
+        sb.Append(".gp-notice{background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:11px 14px;font-size:13.5px;margin:0 0 16px;}");
         sb.Append(".qcard{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 3px rgba(15,23,42,.07);}");
         sb.Append(".qmeta{display:flex;gap:8px;margin-bottom:10px;}");
         sb.Append(".tag{border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;}");
@@ -192,10 +265,10 @@ internal static class PracticePage
         sb.Append(".points{margin-top:12px;font-size:14px;color:#334155;line-height:1.5;}");
         sb.Append(".points.miss{color:#7c2d12;}");
         sb.Append(".ainote{margin-top:12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;}");
-        sb.Append(".model{margin-top:14px;background:#0f172a;color:#e2e8f0;border-radius:12px;padding:14px 18px;}");
-        sb.Append(".model summary{color:#fff;font-weight:700;cursor:pointer;}");
-        sb.Append(".model p{margin:10px 0 0;line-height:1.6;font-size:14.5px;}");
-        sb.Append(".simple{margin-top:12px;background:rgba(16,185,129,.12);border-left:4px solid #10b981;border-radius:10px;padding:12px 14px;font-family:Georgia,'Times New Roman',serif;font-size:15.5px;line-height:1.55;color:#a7f3d0;}");
+        sb.Append(".model{margin-top:14px;background:#0f172a;color:#e2e8f0;border-radius:12px;padding:16px 20px;}");
+        sb.Append(".model summary{color:#fff;font-weight:800;cursor:pointer;font-size:16px;}");
+        sb.Append(".model p{margin:12px 0 0;line-height:1.75;font-size:17px;}");
+        sb.Append(".simple{margin-top:14px;background:rgba(16,185,129,.14);border-left:4px solid #10b981;border-radius:10px;padding:14px 16px;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.65;color:#bbf7d0;}");
         sb.Append(".slabel{font-weight:700;color:#6ee7b7;margin-right:4px;font-family:'Inter',sans-serif;}");
         sb.Append(".stext{font-style:italic;}");
         sb.Append(".empty{background:#fff;border-radius:16px;padding:44px 24px;text-align:center;color:#64748b;box-shadow:0 1px 3px rgba(15,23,42,.06);}");

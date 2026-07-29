@@ -70,25 +70,52 @@ internal static class AskPage
         sb.Append("</div>");
         sb.Append("</form>");
 
-        // Answer first, right under the question, so it is the focus.
-        if (!string.IsNullOrWhiteSpace(answer))
+        // Answer FIRST, right under the button, so it is the very first thing you
+        // see (no scrolling). Your question already shows in the text box above, so
+        // we don't repeat it here. Memory is still kept for follow-ups.
+        var convo = InterviewPrep.Services.StudyAssistant.GetConversation();
+        if (convo.Count > 0)
         {
-            sb.Append("<section class=\"acard\">");
-            sb.Append($"<div class=\"src\">Answer \u00b7 {WebUtility.HtmlEncode(source ?? string.Empty)}</div>");
-            if (!string.IsNullOrWhiteSpace(usage))
+            // Find the most recent answer.
+            var lastA = -1;
+            for (var i = convo.Count - 1; i >= 0; i--)
             {
-                sb.Append($"<div class=\"usage\">\ud83d\udcca {WebUtility.HtmlEncode(usage)} \u2014 switch model above if it runs low</div>");
+                if (string.Equals(convo[i].Role, "assistant", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastA = i;
+                    break;
+                }
             }
 
-            // Preserve line breaks and style the "Say it simply" line distinctly.
-            sb.Append($"<div class=\"atext\">{AnswerFormat.ToHtml(answer)}</div>");
-            sb.Append("</section>");
+            if (lastA >= 0)
+            {
+                sb.Append("<section class=\"acard\">");
+                if (!string.IsNullOrWhiteSpace(source))
+                {
+                    sb.Append($"<div class=\"src\">Answer \u00b7 {WebUtility.HtmlEncode(source)}</div>");
+                }
+
+                sb.Append($"<div class=\"atext\">{AnswerFormat.ToHtml(convo[lastA].Content)}</div>");
+                if (!string.IsNullOrWhiteSpace(usage))
+                {
+                    sb.Append($"<div class=\"usage\">\ud83d\udcca {WebUtility.HtmlEncode(usage)} \u2014 switch model above if it runs low</div>");
+                }
+
+                sb.Append("</section>");
+            }
+
+            // Small memory bar UNDER the answer (so it never pushes the answer down).
+            sb.Append("<form method=\"post\" action=\"/ask/reset\" class=\"chatbar\">");
+            sb.Append("<span class=\"chatlabel\">\ud83d\udcac Remembers your last question</span>");
+            sb.Append("<button class=\"btn btn-newtopic\" type=\"submit\" title=\"Forget the last question and start fresh\">\ud83c\udd95 New topic</button>");
+            sb.Append("</form>");
         }
         else
         {
             sb.Append("<div class=\"empty\"><div class=\"empty-emoji\">\ud83e\udde0</div><h3>Ask to learn</h3>");
             sb.Append("<p>Type any technical question and get a simple explanation. " +
-                      "Use it to study and understand \u2014 then practice saying it in your own words on the Practice page.</p></div>");
+                      "Ask a follow-up like \u201cexplain that simpler\u201d or \u201cgive an example\u201d \u2014 " +
+                      "it remembers your last question.</p></div>");
         }
 
         // Sharing & phone helpers live BELOW the answer so they never push the
@@ -139,6 +166,15 @@ internal static class AskPage
                 : string.Empty;
             var disabled = m.HasKey ? string.Empty : " disabled";
             var label = m.HasKey ? m.DisplayName : m.DisplayName + " \u2014 add API key";
+
+            // Show the last-seen remaining quota so you can pick a model with
+            // room left. Only appears after that model has answered at least once.
+            var left = InterviewPrep.Services.StudyAssistant.GetLastUsage(m.Id);
+            if (m.HasKey && !string.IsNullOrWhiteSpace(left))
+            {
+                label += $"  \u2014  {left}";
+            }
+
             sb.Append($"<option value=\"{WebUtility.HtmlEncode(m.Id)}\"{sel}{disabled}>{WebUtility.HtmlEncode(label)}</option>");
         }
 
@@ -283,6 +319,12 @@ internal static class AskPage
         sb.Append(".wrap{max-width:820px;margin:-14px auto 40px;padding:0 24px;}");
         sb.Append(".notice{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:600;line-height:1.55;margin-top:22px;}");
         sb.Append(".usage{margin-top:6px;font-size:12.5px;font-weight:700;color:#0f766e;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 10px;display:inline-block;}");
+        sb.Append(".chatbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap;}");
+        sb.Append(".chatlabel{font-size:12.5px;font-weight:700;color:#0e7490;background:#ecfeff;border:1px solid #a5f3fc;border-radius:999px;padding:6px 12px;}");
+        sb.Append(".btn-newtopic{background:#fff;color:#334155;border:1px solid #cbd5e1;padding:8px 14px;font-size:13px;}.btn-newtopic:hover{border-color:#0891b2;color:#0891b2;}");
+        sb.Append(".chat{display:flex;flex-direction:column;gap:12px;margin-top:12px;}");
+        sb.Append(".ububble{align-self:flex-end;max-width:85%;background:#0891b2;color:#fff;border-radius:14px 14px 4px 14px;padding:12px 16px;font-size:16px;font-weight:600;line-height:1.55;white-space:pre-wrap;}");
+        sb.Append(".abubble{align-self:flex-start;max-width:92%;margin-top:0;border-radius:14px 14px 14px 4px;}");
         sb.Append(".nav{display:flex;gap:8px;margin:22px 0 16px;}");
         sb.Append(".chip{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#334155;text-decoration:none;}");
         sb.Append(".chip:hover{border-color:#0891b2;color:#0891b2;}");
@@ -321,9 +363,9 @@ internal static class AskPage
         sb.Append(".cover-frame{width:100%;height:100%;border:none;}");
         sb.Append(".cover-text{margin:0;padding:24px;font-family:Consolas,monospace;font-size:14px;white-space:pre-wrap;overflow:auto;height:100%;background:#fff;color:#0f172a;}");
         sb.Append(".mic-status{margin-left:10px;font-size:13px;color:#0891b2;font-weight:600;}");
-        sb.Append(".acard{background:#fff;border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.07);margin-top:16px;}");
+        sb.Append(".acard{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 3px rgba(15,23,42,.07);margin-top:16px;border-left:5px solid #0891b2;}");
         sb.Append(".src{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0891b2;margin-bottom:10px;}");
-        sb.Append(".atext{font-size:15.5px;line-height:1.65;}");
+        sb.Append(".atext{font-size:17.5px;line-height:1.75;color:#0f172a;}");
         AnswerFormat.AppendSayStyles(sb);
         sb.Append(".empty{background:#fff;border-radius:16px;padding:44px 24px;text-align:center;color:#64748b;box-shadow:0 1px 3px rgba(15,23,42,.06);}");
         sb.Append(".empty-emoji{font-size:44px;}.empty h3{margin:10px 0 4px;color:#0f172a;}");

@@ -30,3 +30,14 @@ public sealed record Feedback(
     IReadOnlyList<string> CoveredPoints,
     IReadOnlyList<string> MissedPoints,
     string Comment);
+
+/// <summary>
+/// The "situation" the user describes so the AI can generate fresh, tailored
+/// interview questions instead of using the fixed bank. Any field may be empty.
+/// </summary>
+public sealed record PracticeSituation(
+    string? Topic,
+    string? Role,
+    string? JobDescription,
+    string? Difficulty);
+
