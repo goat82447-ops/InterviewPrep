@@ -45,36 +45,55 @@ static async Task RunAgentCliAsync(AppConfig config)
 {
     using var agent = new CodeAgent(config);
 
-    Console.WriteLine("=== Agent CLI \u2014 build a new project ===");
+    var active = config.GetProvider(null);
+    var modelName = active.HasKey ? active.DisplayName : "no model (add an API key)";
+
+    // Friendly avatar banner so the CLI feels like a real coding assistant.
+    try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { /* some terminals disallow this */ }
+    var accent = ConsoleColor.Cyan;
+    var prev = Console.ForegroundColor;
+    Console.ForegroundColor = accent;
+    Console.WriteLine();
+    Console.WriteLine("   .-\"\"\"\"\"-.");
+    Console.WriteLine("  /  ^   ^  \\     \U0001F916 Krishnaagent");
+    Console.WriteLine("  |  (o) (o) |    your CLI coding agent");
+    Console.WriteLine("  \\    <    /     builds a whole new project for you");
+    Console.WriteLine("   '-.___.-'");
+    Console.ForegroundColor = prev;
+    Console.WriteLine();
+    Console.WriteLine($"  Model    : {modelName}");
     Console.WriteLine(config.HasAnyAi
-        ? "AI: on. Describe a project and it will be created on disk."
-        : "AI: OFF \u2014 add a free API key in appsettings.Local.json first.");
-    Console.WriteLine($"Default location: {agent.DefaultBase}");
-    Console.WriteLine("Type 'quit' at any prompt to exit.");
+        ? "  AI       : on \u2014 describe a project and it will be created on disk."
+        : "  AI       : OFF \u2014 add a free API key in appsettings.Local.json first.");
+    Console.WriteLine($"  Location : {agent.DefaultBase}");
+    Console.WriteLine("  Exit     : press Esc or type 'quit' at any prompt.");
     Console.WriteLine();
 
     while (true)
     {
         Console.Write("Project name: ");
-        var name = Console.ReadLine()?.Trim();
-        if (IsQuit(name))
+        var name = ReadLineOrEscape();
+        if (name is null || IsQuit(name.Trim()))
         {
             break;
         }
+        name = name.Trim();
 
         Console.Write($"Location (Enter for Desktop, or a path like C:\\Projects): ");
-        var location = Console.ReadLine()?.Trim();
-        if (IsQuit(location))
+        var location = ReadLineOrEscape();
+        if (location is null || IsQuit(location.Trim()))
         {
             break;
         }
+        location = location.Trim();
 
         Console.Write("Describe the project: ");
-        var task = Console.ReadLine()?.Trim();
-        if (IsQuit(task))
+        var task = ReadLineOrEscape();
+        if (task is null || IsQuit(task.Trim()))
         {
             break;
         }
+        task = task.Trim();
 
         if (string.IsNullOrWhiteSpace(task))
         {
@@ -116,6 +135,46 @@ static async Task RunAgentCliAsync(AppConfig config)
     static bool IsQuit(string? s) =>
         string.Equals(s, "quit", StringComparison.OrdinalIgnoreCase)
         || string.Equals(s, "exit", StringComparison.OrdinalIgnoreCase);
+
+    // Reads a line but returns null the moment Esc is pressed, so the user can
+    // leave from any prompt. Falls back to ReadLine when input is piped.
+    static string? ReadLineOrEscape()
+    {
+        if (Console.IsInputRedirected)
+        {
+            return Console.ReadLine();
+        }
+
+        var sb = new System.Text.StringBuilder();
+        while (true)
+        {
+            var key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Escape)
+            {
+                Console.WriteLine();
+                return null;
+            }
+            if (key.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine();
+                return sb.ToString();
+            }
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (sb.Length > 0)
+                {
+                    sb.Length--;
+                    Console.Write("\b \b");
+                }
+                continue;
+            }
+            if (!char.IsControl(key.KeyChar))
+            {
+                sb.Append(key.KeyChar);
+                Console.Write(key.KeyChar);
+            }
+        }
+    }
 }
 
 
