@@ -38,72 +38,174 @@ return;
 static bool HasFlag(string[] args, params string[] names) =>
     args.Any(a => names.Any(n => a.Equals(n, StringComparison.OrdinalIgnoreCase)));
 
-// A real command-line coding agent, like Copilot CLI: name a project, pick where
-// to put it, describe it, and it scaffolds the whole project on disk. Loops until
-// you type 'quit'. Never writes into this app's own project folder.
+// A real command-line coding agent, like Copilot CLI: type a description to
+// scaffold a whole new project on disk, or use slash commands (/help, /model,
+// /models, /clear, /cwd, /env, /usage, /version, /exit). Never writes into this
+// app's own project folder.
 static async Task RunAgentCliAsync(AppConfig config)
 {
     using var agent = new CodeAgent(config);
 
-    var active = config.GetProvider(null);
-    var modelName = active.HasKey ? active.DisplayName : "no model (add an API key)";
+    // Session state (like Copilot CLI: model and working directory can change
+    // during the session without touching saved settings).
+    string? sessionModelId = null;
+    var sessionLocation = agent.DefaultBase;
+    var created = 0;
+    var version = System.Reflection.Assembly.GetExecutingAssembly()
+        .GetName().Version?.ToString() ?? "1.0";
 
-    // Friendly avatar banner so the CLI feels like a real coding assistant.
     try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { /* some terminals disallow this */ }
-    var accent = ConsoleColor.Cyan;
-    var prev = Console.ForegroundColor;
-    Console.ForegroundColor = accent;
-    Console.WriteLine();
-    Console.WriteLine("   .-\"\"\"\"\"-.");
-    Console.WriteLine("  /  ^   ^  \\     \U0001F916 Krishnaagent");
-    Console.WriteLine("  |  (o) (o) |    your CLI coding agent");
-    Console.WriteLine("  \\    <    /     builds a whole new project for you");
-    Console.WriteLine("   '-.___.-'");
-    Console.ForegroundColor = prev;
-    Console.WriteLine();
-    Console.WriteLine($"  Model    : {modelName}");
-    Console.WriteLine(config.HasAnyAi
-        ? "  AI       : on \u2014 describe a project and it will be created on disk."
-        : "  AI       : OFF \u2014 add a free API key in appsettings.Local.json first.");
-    Console.WriteLine($"  Location : {agent.DefaultBase}");
-    Console.WriteLine("  Exit     : press Esc or type 'quit' at any prompt.");
-    Console.WriteLine();
+
+    PrintBanner();
 
     while (true)
     {
+        var prompt = "\U0001F916 Krishnaagent > ";
+        Console.Write(prompt);
+        var input = ReadLineOrEscape(prompt);
+        if (input is null)
+        {
+            break; // Esc pressed
+        }
+
+        input = input.Trim();
+        if (input.Length == 0)
+        {
+            continue;
+        }
+
+        // Quick help, like Copilot CLI's `?`.
+        if (input == "?")
+        {
+            PrintHelp();
+            continue;
+        }
+
+        // Slash commands.
+        if (input.StartsWith('/'))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            var cmd = parts[0].ToLowerInvariant();
+            var rest = parts.Length > 1 ? parts[1].Trim() : string.Empty;
+
+            switch (cmd)
+            {
+                case "/exit":
+                case "/quit":
+                    Console.WriteLine("Bye.");
+                    return;
+
+                case "/help":
+                    PrintHelp();
+                    break;
+
+                case "/clear":
+                case "/new":
+                    Console.Clear();
+                    PrintBanner();
+                    break;
+
+                case "/version":
+                    Console.WriteLine($"Krishnaagent v{version}\n");
+                    break;
+
+                case "/model":
+                    if (rest.Length == 0)
+                    {
+                        Console.WriteLine($"Current model: {CurrentModelName()}");
+                        Console.WriteLine("Change it with: /model <id>   (see /models)\n");
+                    }
+                    else
+                    {
+                        var match = config.Providers.FirstOrDefault(p =>
+                            string.Equals(p.Id, rest, StringComparison.OrdinalIgnoreCase));
+                        if (match is null)
+                        {
+                            Console.WriteLine($"No model with id '{rest}'. See /models.\n");
+                        }
+                        else if (!match.HasKey)
+                        {
+                            Console.WriteLine($"'{match.Id}' has no API key. Add one in appsettings.Local.json first.\n");
+                        }
+                        else
+                        {
+                            sessionModelId = match.Id;
+                            Console.WriteLine($"Model set to: {match.DisplayName}\n");
+                        }
+                    }
+                    break;
+
+                case "/models":
+                    Console.WriteLine("Available models:");
+                    foreach (var p in config.Providers)
+                    {
+                        var activeMark = string.Equals(p.Id, CurrentProvider().Id, StringComparison.OrdinalIgnoreCase) ? "*" : " ";
+                        var keyMark = p.HasKey ? "" : "  (no key)";
+                        Console.WriteLine($"  {activeMark} {p.Id,-16} {p.DisplayName}{keyMark}");
+                    }
+                    Console.WriteLine();
+                    break;
+
+                case "/cwd":
+                case "/cd":
+                    if (rest.Length == 0)
+                    {
+                        Console.WriteLine($"Location: {sessionLocation}\n");
+                    }
+                    else
+                    {
+                        sessionLocation = rest;
+                        Console.WriteLine($"Location set to: {sessionLocation}\n");
+                    }
+                    break;
+
+                case "/env":
+                    Console.WriteLine($"  Model    : {CurrentModelName()}");
+                    Console.WriteLine($"  AI       : {(config.HasAnyAi ? "on" : "off")}");
+                    Console.WriteLine($"  Location : {sessionLocation}");
+                    Console.WriteLine($"  Models   : {config.Providers.Count(p => p.HasKey)} with a key / {config.Providers.Count} total");
+                    Console.WriteLine($"  Version  : {version}\n");
+                    break;
+
+                case "/usage":
+                    Console.WriteLine($"Projects created this session: {created}\n");
+                    break;
+
+                default:
+                    Console.WriteLine($"Unknown command '{cmd}'. Type /help.\n");
+                    break;
+            }
+
+            continue;
+        }
+
+        // Anything else is a project description. Ask for the two remaining
+        // details, then scaffold the project.
+        var task = input;
+
         Console.Write("Project name: ");
-        var name = ReadLineOrEscape();
-        if (name is null || IsQuit(name.Trim()))
+        var name = ReadLineOrEscape("Project name: ");
+        if (name is null)
         {
             break;
         }
         name = name.Trim();
 
-        Console.Write($"Location (Enter for Desktop, or a path like C:\\Projects): ");
-        var location = ReadLineOrEscape();
-        if (location is null || IsQuit(location.Trim()))
+        Console.Write($"Location (Enter for {sessionLocation}, or a path): ");
+        var location = ReadLineOrEscape($"Location (Enter for {sessionLocation}, or a path): ");
+        if (location is null)
         {
             break;
         }
         location = location.Trim();
-
-        Console.Write("Describe the project: ");
-        var task = ReadLineOrEscape();
-        if (task is null || IsQuit(task.Trim()))
+        if (location.Length == 0)
         {
-            break;
-        }
-        task = task.Trim();
-
-        if (string.IsNullOrWhiteSpace(task))
-        {
-            Console.WriteLine("Please describe what to build.\n");
-            continue;
+            location = sessionLocation;
         }
 
         Console.WriteLine("Working\u2026");
         var (message, files, notice, source, projectFolder) =
-            await agent.RunAsync(task!, name, location);
+            await agent.RunAsync(task, name, location, sessionModelId);
 
         Console.WriteLine();
         if (!string.IsNullOrWhiteSpace(notice))
@@ -118,9 +220,11 @@ static async Task RunAgentCliAsync(AppConfig config)
             foreach (var f in files)
             {
                 Console.WriteLine($"  {f.Status,-22} {f.Path}");
+                PrintFileDiff(f);
             }
 
             Console.WriteLine("Done. Open the folder above to build and run it.");
+            created++;
         }
         else if (string.IsNullOrWhiteSpace(notice))
         {
@@ -132,13 +236,79 @@ static async Task RunAgentCliAsync(AppConfig config)
 
     Console.WriteLine("Bye.");
 
-    static bool IsQuit(string? s) =>
-        string.Equals(s, "quit", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(s, "exit", StringComparison.OrdinalIgnoreCase);
+    // ---- local helpers ----
+
+    AiProvider CurrentProvider() => config.GetProvider(sessionModelId);
+
+    string CurrentModelName()
+    {
+        var p = CurrentProvider();
+        return p.HasKey ? p.DisplayName : "no model (add an API key)";
+    }
+
+    void PrintBanner()
+    {
+        var prev = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine();
+        Console.WriteLine("   .-\"\"\"\"\"-.");
+        Console.WriteLine("  /  ^   ^  \\     \U0001F916 Krishnaagent");
+        Console.WriteLine("  |  (o) (o) |    your CLI coding agent");
+        Console.WriteLine("  \\    <    /     builds a whole new project for you");
+        Console.WriteLine("   '-.___.-'");
+        Console.ForegroundColor = prev;
+        Console.WriteLine();
+        Console.WriteLine($"  Model    : {CurrentModelName()}");
+        Console.WriteLine(config.HasAnyAi
+            ? "  AI       : on \u2014 describe a project and it will be created on disk."
+            : "  AI       : OFF \u2014 add a free API key in appsettings.Local.json first.");
+        Console.WriteLine($"  Location : {sessionLocation}");
+        Console.WriteLine("  Tip      : type a project description, or /help for commands. Esc to exit.");
+        Console.WriteLine();
+    }
+
+    static void PrintHelp()
+    {
+        Console.WriteLine("Commands:");
+        Console.WriteLine("  <description>   Describe a project to scaffold it on disk.");
+        Console.WriteLine("  /help, ?        Show this help.");
+        Console.WriteLine("  /model [id]     Show or change the AI model for this session.");
+        Console.WriteLine("  /models         List all available models.");
+        Console.WriteLine("  /cwd, /cd [dir] Show or change the default location.");
+        Console.WriteLine("  /env            Show model, AI status, location, and version.");
+        Console.WriteLine("  /usage          Projects created this session.");
+        Console.WriteLine("  /clear, /new    Clear the screen.");
+        Console.WriteLine("  /version        Show the version.");
+        Console.WriteLine("  /exit, /quit    Leave (or press Esc).");
+        Console.WriteLine();
+    }
+
+    // Prints a created/updated file's contents like Copilot CLI: each line
+    // numbered with a green "+", so you can watch the code being written.
+    static void PrintFileDiff(CodeAgent.AgentFileResult f)
+    {
+        if (string.IsNullOrEmpty(f.Content))
+        {
+            return;
+        }
+
+        var prev = Console.ForegroundColor;
+        var lines = f.Content.Replace("\r\n", "\n").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write($"{i + 1,4} ");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"+ {lines[i]}");
+        }
+        Console.ForegroundColor = prev;
+        Console.WriteLine();
+    }
 
     // Reads a line but returns null the moment Esc is pressed, so the user can
-    // leave from any prompt. Falls back to ReadLine when input is piped.
-    static string? ReadLineOrEscape()
+    // leave from any prompt. Ctrl+L clears the screen. Falls back to ReadLine
+    // when input is piped.
+    static string? ReadLineOrEscape(string prompt)
     {
         if (Console.IsInputRedirected)
         {
@@ -158,6 +328,14 @@ static async Task RunAgentCliAsync(AppConfig config)
             {
                 Console.WriteLine();
                 return sb.ToString();
+            }
+            // Ctrl+L clears the screen and redraws the current line.
+            if (key.Key == ConsoleKey.L && (key.Modifiers & ConsoleModifiers.Control) != 0)
+            {
+                Console.Clear();
+                Console.Write(prompt);
+                Console.Write(sb.ToString());
+                continue;
             }
             if (key.Key == ConsoleKey.Backspace)
             {
