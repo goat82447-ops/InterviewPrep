@@ -15,6 +15,7 @@ using InterviewPrep.Web;
 // Modes:
 //   (default)   interactive console practice.
 //   --web       practice dashboard at http://localhost:5095.
+//   --agent     CLI coding agent: scaffold a whole new project from the terminal.
 
 var config = AppConfig.Load(ProjectPaths.ProjectRoot);
 var scorer = new AnswerScorer();
@@ -25,11 +26,98 @@ if (HasFlag(args, "--web", "web"))
     return;
 }
 
+if (HasFlag(args, "--agent", "agent", "--cli", "cli"))
+{
+    await RunAgentCliAsync(config);
+    return;
+}
+
 await RunConsoleAsync(config, scorer);
 return;
 
 static bool HasFlag(string[] args, params string[] names) =>
     args.Any(a => names.Any(n => a.Equals(n, StringComparison.OrdinalIgnoreCase)));
+
+// A real command-line coding agent, like Copilot CLI: name a project, pick where
+// to put it, describe it, and it scaffolds the whole project on disk. Loops until
+// you type 'quit'. Never writes into this app's own project folder.
+static async Task RunAgentCliAsync(AppConfig config)
+{
+    using var agent = new CodeAgent(config);
+
+    Console.WriteLine("=== Agent CLI \u2014 build a new project ===");
+    Console.WriteLine(config.HasAnyAi
+        ? "AI: on. Describe a project and it will be created on disk."
+        : "AI: OFF \u2014 add a free API key in appsettings.Local.json first.");
+    Console.WriteLine($"Default location: {agent.DefaultBase}");
+    Console.WriteLine("Type 'quit' at any prompt to exit.");
+    Console.WriteLine();
+
+    while (true)
+    {
+        Console.Write("Project name: ");
+        var name = Console.ReadLine()?.Trim();
+        if (IsQuit(name))
+        {
+            break;
+        }
+
+        Console.Write($"Location (Enter for Desktop, or a path like C:\\Projects): ");
+        var location = Console.ReadLine()?.Trim();
+        if (IsQuit(location))
+        {
+            break;
+        }
+
+        Console.Write("Describe the project: ");
+        var task = Console.ReadLine()?.Trim();
+        if (IsQuit(task))
+        {
+            break;
+        }
+
+        if (string.IsNullOrWhiteSpace(task))
+        {
+            Console.WriteLine("Please describe what to build.\n");
+            continue;
+        }
+
+        Console.WriteLine("Working\u2026");
+        var (message, files, notice, source, projectFolder) =
+            await agent.RunAsync(task!, name, location);
+
+        Console.WriteLine();
+        if (!string.IsNullOrWhiteSpace(notice))
+        {
+            Console.WriteLine(notice);
+        }
+
+        if (files.Count > 0)
+        {
+            Console.WriteLine($"[{source}] {message}");
+            Console.WriteLine($"Folder: {projectFolder}");
+            foreach (var f in files)
+            {
+                Console.WriteLine($"  {f.Status,-22} {f.Path}");
+            }
+
+            Console.WriteLine("Done. Open the folder above to build and run it.");
+        }
+        else if (string.IsNullOrWhiteSpace(notice))
+        {
+            Console.WriteLine("No files were created.");
+        }
+
+        Console.WriteLine();
+    }
+
+    Console.WriteLine("Bye.");
+
+    static bool IsQuit(string? s) =>
+        string.Equals(s, "quit", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(s, "exit", StringComparison.OrdinalIgnoreCase);
+}
+
 
 static async Task RunConsoleAsync(AppConfig config, AnswerScorer scorer)
 {
