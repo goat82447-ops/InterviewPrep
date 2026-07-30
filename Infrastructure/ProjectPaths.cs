@@ -22,6 +22,8 @@ public static class ProjectPaths
             dir = dir.Parent;
         }
 
-        return Directory.GetCurrentDirectory();
+        // Published exe (no .csproj in any parent): use the folder next to the
+        // exe, where appsettings.json is copied on publish.
+        return AppContext.BaseDirectory;
     }
 }
