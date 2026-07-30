@@ -20,7 +20,7 @@ public sealed class CodeAgent : IDisposable
     private readonly string _defaultBase;
 
     /// <summary>Result of trying to write one file the agent proposed.</summary>
-    public readonly record struct AgentFileResult(string Path, string Status);
+    public readonly record struct AgentFileResult(string Path, string Status, string Content = "");
 
     public CodeAgent(AppConfig config)
     {
@@ -262,7 +262,7 @@ public sealed class CodeAgent : IDisposable
 
                 File.WriteAllText(full, content);
                 var shown = Path.GetRelativePath(projectFolder, full).Replace('\\', '/');
-                results.Add(new AgentFileResult(shown, existed ? "updated" : "created"));
+                results.Add(new AgentFileResult(shown, existed ? "updated" : "created", content));
             }
             catch (Exception ex)
             {
