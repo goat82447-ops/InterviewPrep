@@ -610,6 +610,26 @@ static async Task RunConsoleAsync(AppConfig config, AnswerScorer scorer)
     Console.WriteLine("Great work. Keep practicing!");
 }
 
+static string GetSessionId(HttpContext ctx)
+{
+    // Each browser gets its own random id in a cookie, so every visitor has a
+    // separate chat history. Two people on the site at once never mix questions.
+    const string cookie = "sid";
+    if (ctx.Request.Cookies.TryGetValue(cookie, out var id) && !string.IsNullOrWhiteSpace(id))
+    {
+        return id;
+    }
+
+    id = Guid.NewGuid().ToString("N");
+    ctx.Response.Cookies.Append(cookie, id, new CookieOptions
+    {
+        HttpOnly = true,
+        SameSite = SameSiteMode.Lax,
+        MaxAge = TimeSpan.FromDays(7),
+    });
+    return id;
+}
+
 static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
 {
     var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -627,45 +647,51 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
     app.MapGet("/intro", () => Results.Content(IntroPage.Render(), "text/html"));
 
     // Ask & Learn: type any technical question, get an explained answer to study.
-    app.MapGet("/ask", () =>
-        Results.Content(
-            AskPage.Render(null, null, null, config.HasOpenAi,
-                config.Providers, config.GetProvider(null).Id),
-            "text/html"));
-
-    app.MapPost("/ask", async (HttpRequest request) =>
+    app.MapGet("/ask", (HttpContext ctx) =>
     {
-        var form = await request.ReadFormAsync();
+        var sid = GetSessionId(ctx);
+        return Results.Content(
+            AskPage.Render(null, null, null, config.HasOpenAi,
+                config.Providers, config.GetProvider(null).Id, null, null, sid),
+            "text/html");
+    });
+
+    app.MapPost("/ask", async (HttpContext ctx) =>
+    {
+        var sid = GetSessionId(ctx);
+        var form = await ctx.Request.ReadFormAsync();
         var question = form["question"].ToString();
         var model = form["model"].ToString();
 
         using var assistant = new StudyAssistant(config);
-        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model);
+        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model, sid);
 
         var selected = config.GetProvider(model).Id;
         var html = AskPage.Render(question, answer, source, config.HasOpenAi,
-            config.Providers, selected, notice, usage);
+            config.Providers, selected, notice, usage, sid);
         return Results.Content(html, "text/html");
     });
 
     // JSON answer endpoint — lets the private floating window ask a new question
     // and show the answer inside itself, without switching back to the shared tab.
-    app.MapPost("/ask-json", async (HttpRequest request) =>
+    app.MapPost("/ask-json", async (HttpContext ctx) =>
     {
-        var form = await request.ReadFormAsync();
+        var sid = GetSessionId(ctx);
+        var form = await ctx.Request.ReadFormAsync();
         var question = form["question"].ToString();
         var model = form["model"].ToString();
 
         using var assistant = new StudyAssistant(config);
-        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model);
+        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model, sid);
         return Results.Json(new { answer, source, notice, usage, html = AnswerFormat.ToHtml(answer) });
     });
 
     // Start a fresh topic — forget the running chat so the next question has no
     // earlier context. Used by the "New topic" button on the Ask page.
-    app.MapPost("/ask/reset", () =>
+    app.MapPost("/ask/reset", (HttpContext ctx) =>
     {
-        StudyAssistant.ClearConversation();
+        var sid = GetSessionId(ctx);
+        StudyAssistant.ClearConversation(sid);
         return Results.Redirect("/ask");
     });
 
