@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -19,8 +20,52 @@ public sealed class CodeAgent : IDisposable
     private readonly string _appProjectRoot;
     private readonly string _defaultBase;
 
+    // A small on-disk memory so generations survive after you close the app.
+    // The first run saves the AI's output to a JSON file; the next run — even a
+    // brand-new session — reads it back and skips the server.
+    private sealed record CachedFile(string Path, string Content);
+    private sealed record CachedProject(string Message, List<CachedFile> Files);
+
+    private static readonly string _cacheFile = Path.Combine(
+        AppContext.BaseDirectory, "agent-cache.json");
+
+    private static readonly ConcurrentDictionary<string, CachedProject> _cache = LoadCache();
+
+    /// <summary>Loads the saved cache from disk, or starts empty if there isn't one.</summary>
+    private static ConcurrentDictionary<string, CachedProject> LoadCache()
+    {
+        try
+        {
+            if (File.Exists(_cacheFile))
+            {
+                var json = File.ReadAllText(_cacheFile);
+                var data = JsonSerializer.Deserialize<Dictionary<string, CachedProject>>(json);
+                if (data is not null)
+                {
+                    return new ConcurrentDictionary<string, CachedProject>(data, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+        }
+        catch { /* a bad or missing cache file just means we start fresh */ }
+
+        return new ConcurrentDictionary<string, CachedProject>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Writes the whole cache back to its JSON file so it persists.</summary>
+    private static void SaveCache()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(_cacheFile);
+            if (!string.IsNullOrEmpty(dir)) { Directory.CreateDirectory(dir); }
+            var json = JsonSerializer.Serialize(_cache, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_cacheFile, json);
+        }
+        catch { /* if we can't write the cache, we simply won't persist it */ }
+    }
+
     /// <summary>Result of trying to write one file the agent proposed.</summary>
-    public readonly record struct AgentFileResult(string Path, string Status);
+    public readonly record struct AgentFileResult(string Path, string Status, string Content = "");
 
     public CodeAgent(AppConfig config)
     {
@@ -72,6 +117,16 @@ public sealed class CodeAgent : IDisposable
                 "folder (e.g. your Desktop) so the app can't be overwritten.", "blocked", projectFolder);
         }
 
+        // Memory first: if we've already generated this exact task before (this
+        // session OR a past one), reuse the saved copy and skip the server.
+        var cacheKey = folderName + "|" + task;
+        if (_cache.TryGetValue(cacheKey, out var cached))
+        {
+            var cachedFiles = cached.Files.Select(f => (f.Path, f.Content)).ToList();
+            var cachedResults = WriteFiles(projectFolder, cachedFiles);
+            return (cached.Message, cachedResults, null, "memory (saved)", projectFolder);
+        }
+
         // Try the requested provider first, then any other provider that has a key.
         var tryOrder = new List<AiProvider>();
         var requested = _config.GetProvider(providerId);
@@ -121,6 +176,11 @@ public sealed class CodeAgent : IDisposable
             {
                 if (TryParse(content!, out var message, out var files))
                 {
+                    // Remember this generation on disk so the next identical task
+                    // (even in a new session) is served from memory, not the server.
+                    _cache[cacheKey] = new CachedProject(
+                        message, files.Select(f => new CachedFile(f.Path, f.Content)).ToList());
+                    SaveCache();
                     var results = WriteFiles(projectFolder, files);
                     return (message, results, null, p.DisplayName, projectFolder);
                 }
@@ -262,7 +322,7 @@ public sealed class CodeAgent : IDisposable
 
                 File.WriteAllText(full, content);
                 var shown = Path.GetRelativePath(projectFolder, full).Replace('\\', '/');
-                results.Add(new AgentFileResult(shown, existed ? "updated" : "created"));
+                results.Add(new AgentFileResult(shown, existed ? "updated" : "created", content));
             }
             catch (Exception ex)
             {
