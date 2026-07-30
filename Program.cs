@@ -15,6 +15,7 @@ using InterviewPrep.Web;
 // Modes:
 //   (default)   interactive console practice.
 //   --web       practice dashboard at http://localhost:5095.
+//   --agent     CLI coding agent: scaffold a whole new project from the terminal.
 
 var config = AppConfig.Load(ProjectPaths.ProjectRoot);
 var scorer = new AnswerScorer();
@@ -25,11 +26,157 @@ if (HasFlag(args, "--web", "web"))
     return;
 }
 
+if (HasFlag(args, "--agent", "agent", "--cli", "cli"))
+{
+    await RunAgentCliAsync(config);
+    return;
+}
+
 await RunConsoleAsync(config, scorer);
 return;
 
 static bool HasFlag(string[] args, params string[] names) =>
     args.Any(a => names.Any(n => a.Equals(n, StringComparison.OrdinalIgnoreCase)));
+
+// A real command-line coding agent, like Copilot CLI: name a project, pick where
+// to put it, describe it, and it scaffolds the whole project on disk. Loops until
+// you type 'quit'. Never writes into this app's own project folder.
+static async Task RunAgentCliAsync(AppConfig config)
+{
+    using var agent = new CodeAgent(config);
+
+    var active = config.GetProvider(null);
+    var modelName = active.HasKey ? active.DisplayName : "no model (add an API key)";
+
+    // Friendly avatar banner so the CLI feels like a real coding assistant.
+    try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { /* some terminals disallow this */ }
+    var accent = ConsoleColor.Cyan;
+    var prev = Console.ForegroundColor;
+    Console.ForegroundColor = accent;
+    Console.WriteLine();
+    Console.WriteLine("   .-\"\"\"\"\"-.");
+    Console.WriteLine("  /  ^   ^  \\     \U0001F916 Krishnaagent");
+    Console.WriteLine("  |  (o) (o) |    your CLI coding agent");
+    Console.WriteLine("  \\    <    /     builds a whole new project for you");
+    Console.WriteLine("   '-.___.-'");
+    Console.ForegroundColor = prev;
+    Console.WriteLine();
+    Console.WriteLine($"  Model    : {modelName}");
+    Console.WriteLine(config.HasAnyAi
+        ? "  AI       : on \u2014 describe a project and it will be created on disk."
+        : "  AI       : OFF \u2014 add a free API key in appsettings.Local.json first.");
+    Console.WriteLine($"  Location : {agent.DefaultBase}");
+    Console.WriteLine("  Exit     : press Esc or type 'quit' at any prompt.");
+    Console.WriteLine();
+
+    while (true)
+    {
+        Console.Write("Project name: ");
+        var name = ReadLineOrEscape();
+        if (name is null || IsQuit(name.Trim()))
+        {
+            break;
+        }
+        name = name.Trim();
+
+        Console.Write($"Location (Enter for Desktop, or a path like C:\\Projects): ");
+        var location = ReadLineOrEscape();
+        if (location is null || IsQuit(location.Trim()))
+        {
+            break;
+        }
+        location = location.Trim();
+
+        Console.Write("Describe the project: ");
+        var task = ReadLineOrEscape();
+        if (task is null || IsQuit(task.Trim()))
+        {
+            break;
+        }
+        task = task.Trim();
+
+        if (string.IsNullOrWhiteSpace(task))
+        {
+            Console.WriteLine("Please describe what to build.\n");
+            continue;
+        }
+
+        Console.WriteLine("Working\u2026");
+        var (message, files, notice, source, projectFolder) =
+            await agent.RunAsync(task!, name, location);
+
+        Console.WriteLine();
+        if (!string.IsNullOrWhiteSpace(notice))
+        {
+            Console.WriteLine(notice);
+        }
+
+        if (files.Count > 0)
+        {
+            Console.WriteLine($"[{source}] {message}");
+            Console.WriteLine($"Folder: {projectFolder}");
+            foreach (var f in files)
+            {
+                Console.WriteLine($"  {f.Status,-22} {f.Path}");
+            }
+
+            Console.WriteLine("Done. Open the folder above to build and run it.");
+        }
+        else if (string.IsNullOrWhiteSpace(notice))
+        {
+            Console.WriteLine("No files were created.");
+        }
+
+        Console.WriteLine();
+    }
+
+    Console.WriteLine("Bye.");
+
+    static bool IsQuit(string? s) =>
+        string.Equals(s, "quit", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(s, "exit", StringComparison.OrdinalIgnoreCase);
+
+    // Reads a line but returns null the moment Esc is pressed, so the user can
+    // leave from any prompt. Falls back to ReadLine when input is piped.
+    static string? ReadLineOrEscape()
+    {
+        if (Console.IsInputRedirected)
+        {
+            return Console.ReadLine();
+        }
+
+        var sb = new System.Text.StringBuilder();
+        while (true)
+        {
+            var key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Escape)
+            {
+                Console.WriteLine();
+                return null;
+            }
+            if (key.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine();
+                return sb.ToString();
+            }
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (sb.Length > 0)
+                {
+                    sb.Length--;
+                    Console.Write("\b \b");
+                }
+                continue;
+            }
+            if (!char.IsControl(key.KeyChar))
+            {
+                sb.Append(key.KeyChar);
+                Console.Write(key.KeyChar);
+            }
+        }
+    }
+}
+
 
 static async Task RunConsoleAsync(AppConfig config, AnswerScorer scorer)
 {
