@@ -50,6 +50,7 @@ static async Task RunAgentCliAsync(AppConfig config)
     // during the session without touching saved settings).
     string? sessionModelId = null;
     var sessionLocation = agent.DefaultBase;
+    var history = new List<string>();
     var created = 0;
     var version = System.Reflection.Assembly.GetExecutingAssembly()
         .GetName().Version?.ToString() ?? "1.0";
@@ -62,7 +63,7 @@ static async Task RunAgentCliAsync(AppConfig config)
     {
         var prompt = "\U0001F916 Krishnaagent > ";
         Console.Write(prompt);
-        var input = ReadLineOrEscape(prompt);
+        var input = ReadLineOrEscape(prompt, history);
         if (input is null)
         {
             break; // Esc pressed
@@ -72,6 +73,12 @@ static async Task RunAgentCliAsync(AppConfig config)
         if (input.Length == 0)
         {
             continue;
+        }
+
+        // Remember this line so the Up/Down arrows can recall it later.
+        if (history.Count == 0 || !string.Equals(history[^1], input, StringComparison.Ordinal))
+        {
+            history.Add(input);
         }
 
         // Quick help, like Copilot CLI's `?`.
@@ -179,30 +186,14 @@ static async Task RunAgentCliAsync(AppConfig config)
             continue;
         }
 
-        // Anything else is a project description. Ask for the two remaining
-        // details, then scaffold the project.
+        // Anything else is a project description. The agent decides the language,
+        // the project name, and the folder itself — the user isn't asked for them.
         var task = input;
+        var name = AutoProjectName(task);
+        var location = sessionLocation;
 
-        Console.Write("Project name: ");
-        var name = ReadLineOrEscape("Project name: ");
-        if (name is null)
-        {
-            break;
-        }
-        name = name.Trim();
-
-        Console.Write($"Location (Enter for {sessionLocation}, or a path): ");
-        var location = ReadLineOrEscape($"Location (Enter for {sessionLocation}, or a path): ");
-        if (location is null)
-        {
-            break;
-        }
-        location = location.Trim();
-        if (location.Length == 0)
-        {
-            location = sessionLocation;
-        }
-
+        Console.WriteLine($"Project name (auto): {name}");
+        Console.WriteLine($"Location (auto)    : {location}");
         Console.WriteLine("Working\u2026");
         var (message, files, notice, source, projectFolder) =
             await agent.RunAsync(task, name, location, sessionModelId);
@@ -223,7 +214,8 @@ static async Task RunAgentCliAsync(AppConfig config)
                 PrintFileDiff(f);
             }
 
-            Console.WriteLine("Done. Open the folder above to build and run it.");
+            await VerifyProjectAsync(projectFolder, files);
+            Console.WriteLine("Done.");
             created++;
         }
         else if (string.IsNullOrWhiteSpace(notice))
@@ -283,6 +275,155 @@ static async Task RunAgentCliAsync(AppConfig config)
         Console.WriteLine();
     }
 
+    // Builds a project name from the first words of the description, so the user
+    // doesn't have to invent one. Deterministic, so the same request re-uses the
+    // same saved project.
+    static string AutoProjectName(string task)
+    {
+        var words = (task ?? string.Empty).Split(
+            new[] { ' ', '\t', '\n', '\r', ',', '.', ';', ':', '/', '\\', '"', '\'' },
+            StringSplitOptions.RemoveEmptyEntries);
+
+        var sb = new System.Text.StringBuilder();
+        var used = 0;
+        foreach (var w in words)
+        {
+            var clean = new string(w.Where(char.IsLetterOrDigit).ToArray());
+            if (clean.Length == 0) { continue; }
+            if (sb.Length > 0) { sb.Append('-'); }
+            sb.Append(char.ToUpperInvariant(clean[0]));
+            if (clean.Length > 1) { sb.Append(clean.Substring(1).ToLowerInvariant()); }
+            if (++used >= 4) { break; }
+        }
+
+        var name = sb.ToString().Trim('-');
+        return name.Length == 0 ? "NewProject" : name;
+    }
+
+    // After a project is written, confirm every file is really on disk, then try
+    // to run it in a child process as a quick verification.
+    static async Task VerifyProjectAsync(string projectFolder, IReadOnlyList<CodeAgent.AgentFileResult> files)
+    {
+        Console.WriteLine();
+        Console.WriteLine("Checking files on disk\u2026");
+        var missing = 0;
+        foreach (var f in files)
+        {
+            var full = Path.Combine(projectFolder, f.Path);
+            var ok = File.Exists(full);
+            Console.WriteLine($"  {(ok ? "OK     " : "MISSING")} {f.Path}");
+            if (!ok) { missing++; }
+        }
+
+        if (missing > 0)
+        {
+            Console.WriteLine($"{missing} file(s) missing \u2014 skipping the run.");
+            return;
+        }
+        Console.WriteLine("All files are present.");
+
+        var (exe, args) = PickRunCommand(projectFolder, files);
+        if (exe is null)
+        {
+            Console.WriteLine("No known way to run this project type \u2014 skipping the run step.");
+            return;
+        }
+
+        Console.WriteLine($"Running to verify: {exe} {args}");
+        Console.WriteLine("(stops when it finishes, or after 25s if it keeps running)\n");
+        await RunForVerificationAsync(exe, args, projectFolder);
+    }
+
+    // Picks a run command based on the files present: .NET, Node, or Python.
+    static (string? exe, string args) PickRunCommand(
+        string folder, IReadOnlyList<CodeAgent.AgentFileResult> files)
+    {
+        bool Has(string fileName) => files.Any(f =>
+            string.Equals(Path.GetFileName(f.Path), fileName, StringComparison.OrdinalIgnoreCase));
+
+        var csproj = files.FirstOrDefault(f =>
+            f.Path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).Path;
+        if (!string.IsNullOrEmpty(csproj))
+        {
+            return ("dotnet", $"run --project \"{Path.Combine(folder, csproj)}\"");
+        }
+
+        if (Has("package.json"))
+        {
+            var entry = new[] { "index.js", "app.js", "server.js", "main.js" }
+                .FirstOrDefault(Has);
+            return entry is not null
+                ? ("node", $"\"{Path.Combine(folder, entry)}\"")
+                : ((string?)null, string.Empty);
+        }
+
+        var py = new[] { "main.py", "app.py" }.FirstOrDefault(Has)
+            ?? files.FirstOrDefault(f =>
+                f.Path.EndsWith(".py", StringComparison.OrdinalIgnoreCase)).Path;
+        if (!string.IsNullOrEmpty(py))
+        {
+            return ("python", $"\"{Path.Combine(folder, py)}\"");
+        }
+
+        return (null, string.Empty);
+    }
+
+    // Runs the child process, streams its output, and stops it after 25s so a
+    // long-running server doesn't block the agent.
+    static async Task RunForVerificationAsync(string exe, string args, string workDir)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = args,
+                WorkingDirectory = workDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var proc = new System.Diagnostics.Process { StartInfo = psi };
+            var sb = new System.Text.StringBuilder();
+            proc.OutputDataReceived += (_, e) => { if (e.Data is not null) { sb.AppendLine(e.Data); } };
+            proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) { sb.AppendLine(e.Data); } };
+
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+
+            var exited = await Task.Run(() => proc.WaitForExit(25000));
+            if (!exited)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                Console.WriteLine(TrimOutput(sb.ToString()));
+                Console.WriteLine("\nApp launched and kept running (looks like a server). " +
+                    "Verified it starts; stopped it after 25s.");
+                return;
+            }
+
+            Console.WriteLine(TrimOutput(sb.ToString()));
+            Console.WriteLine(proc.ExitCode == 0
+                ? "\nVerification run finished successfully (exit code 0)."
+                : $"\nVerification run exited with code {proc.ExitCode}.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Could not run it: {ex.Message}");
+            Console.WriteLine("(The needed tool may not be installed \u2014 e.g. .NET, Node, or Python.)");
+        }
+    }
+
+    // Keeps console output readable by trimming very long run logs.
+    static string TrimOutput(string text)
+    {
+        text = text.TrimEnd();
+        const int max = 4000;
+        return text.Length <= max ? text : "\u2026" + text.Substring(text.Length - max);
+    }
+
     // Prints a created/updated file's contents like Copilot CLI: each line
     // numbered with a green "+", so you can watch the code being written.
     static void PrintFileDiff(CodeAgent.AgentFileResult f)
@@ -308,7 +449,7 @@ static async Task RunAgentCliAsync(AppConfig config)
     // Reads a line but returns null the moment Esc is pressed, so the user can
     // leave from any prompt. Ctrl+L clears the screen. Falls back to ReadLine
     // when input is piped.
-    static string? ReadLineOrEscape(string prompt)
+    static string? ReadLineOrEscape(string prompt, List<string>? history = null)
     {
         if (Console.IsInputRedirected)
         {
@@ -316,6 +457,16 @@ static async Task RunAgentCliAsync(AppConfig config)
         }
 
         var sb = new System.Text.StringBuilder();
+        var historyPos = history?.Count ?? 0;
+
+        void Redraw()
+        {
+            try { Console.Write("\r" + new string(' ', Math.Max(0, Console.WindowWidth - 1)) + "\r"); }
+            catch { Console.Write("\r"); }
+            Console.Write(prompt);
+            Console.Write(sb.ToString());
+        }
+
         while (true)
         {
             var key = Console.ReadKey(intercept: true);
@@ -328,6 +479,37 @@ static async Task RunAgentCliAsync(AppConfig config)
             {
                 Console.WriteLine();
                 return sb.ToString();
+            }
+            // Up/Down walk through earlier commands, like a normal shell.
+            if (key.Key == ConsoleKey.UpArrow)
+            {
+                if (history is { Count: > 0 } && historyPos > 0)
+                {
+                    historyPos--;
+                    sb.Clear();
+                    sb.Append(history[historyPos]);
+                    Redraw();
+                }
+                continue;
+            }
+            if (key.Key == ConsoleKey.DownArrow)
+            {
+                if (history is { Count: > 0 })
+                {
+                    if (historyPos < history.Count - 1)
+                    {
+                        historyPos++;
+                        sb.Clear();
+                        sb.Append(history[historyPos]);
+                    }
+                    else
+                    {
+                        historyPos = history.Count;
+                        sb.Clear();
+                    }
+                    Redraw();
+                }
+                continue;
             }
             // Ctrl+L clears the screen and redraws the current line.
             if (key.Key == ConsoleKey.L && (key.Modifiers & ConsoleModifiers.Control) != 0)
@@ -511,6 +693,16 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var html = AgentPage.Render(task, project, location, message, files,
             config.Providers, selected, notice, source, projectFolder);
         return Results.Content(html, "text/html");
+    });
+
+    // Download the compiled agent as a single .exe. Anyone can save it and run it
+    // in cmd with:  Krishnaagent.exe --agent   (no repo, no .NET install needed).
+    app.MapGet("/download-agent", () =>
+    {
+        var exePath = Path.Combine(ProjectPaths.ProjectRoot, "downloads", "Krishnaagent.exe");
+        return File.Exists(exePath)
+            ? Results.File(exePath, "application/octet-stream", "Krishnaagent.exe")
+            : Results.NotFound("The agent .exe has not been published yet. Ask the owner to build it.");
     });
 
     // Mock interview: answer a question, get coached, then face a follow-up.

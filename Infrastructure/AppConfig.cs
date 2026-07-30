@@ -123,9 +123,34 @@ public sealed class AppConfig
         var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
-        foreach (var file in new[] { "appsettings.json", "appsettings.Local.json" })
+        // Build the list of config files to read, in priority order (later files
+        // win). We always read the files next to the app first, then a fixed
+        // per-user folder (%USERPROFILE%\.krishnaagent). That lets the user set
+        // their API key ONCE in the home folder and have every copy of the exe
+        // — no matter where it lives — pick it up automatically. No copying, no
+        // remembering the key each time.
+        var searchPaths = new List<string>
         {
-            var path = Path.Combine(projectRoot, file);
+            Path.Combine(projectRoot, "appsettings.json"),
+            Path.Combine(projectRoot, "appsettings.Local.json"),
+        };
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(home))
+            {
+                var homeDir = Path.Combine(home, ".krishnaagent");
+                searchPaths.Add(Path.Combine(homeDir, "appsettings.json"));
+                searchPaths.Add(Path.Combine(homeDir, "appsettings.Local.json"));
+            }
+        }
+        catch
+        {
+            // Ignore if the home folder can't be resolved; app-local files still work.
+        }
+
+        foreach (var path in searchPaths)
+        {
             if (!File.Exists(path))
             {
                 continue;

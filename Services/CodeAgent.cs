@@ -244,9 +244,13 @@ public sealed class CodeAgent : IDisposable
 
             return (content, null);
         }
-        catch
+        catch (TaskCanceledException)
         {
-            return (null, null);
+            return (null, $"\u26a0\ufe0f {provider.DisplayName} timed out. Check your internet connection.");
+        }
+        catch (Exception ex)
+        {
+            return (null, $"\u26a0\ufe0f Could not reach {provider.DisplayName}: {ex.Message}");
         }
     }
 
