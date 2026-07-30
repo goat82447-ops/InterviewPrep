@@ -566,6 +566,56 @@ public static class QuestionBank
             "Giving feedback, I'm specific and timely, focus on the behavior and its impact, praise publicly and correct privately. Receiving it, I listen without getting defensive, thank them, and act on it. I treat feedback as a gift.",
             "specific and timely", "behavior not person", "praise publicly correct privately", "listen without defensiveness", "act on it", "growth mindset");
 
+        // ---------------- Investment Banking ----------------
+        Add("Investment Banking", Level.Easy,
+            "What does an investment bank actually do?",
+            "An investment bank helps companies, governments, and large investors raise money and make big financial decisions. Its main jobs are: underwriting (helping a company issue new shares or bonds to raise capital), advising on mergers and acquisitions (M&A) when one company buys or merges with another, and trading or selling securities like stocks and bonds. It sits between those who need money (companies) and those who have money (investors), earning fees for advice and for arranging the deals.",
+            "An investment bank helps companies and governments raise money and do big deals. It helps them sell shares or bonds, advises on buying or merging with other companies, and trades securities. It connects people who need money with people who have money, and earns fees.",
+            "raise capital", "underwriting", "mergers and acquisitions", "securities", "advisory", "fees");
+
+        Add("Investment Banking", Level.Easy,
+            "What is the difference between the buy side and the sell side?",
+            "The sell side creates and sells financial products and services - investment banks, brokers, and market makers that underwrite securities, publish research, and execute trades for clients. The buy side is the investors who buy and hold those products to earn returns - hedge funds, pension funds, mutual funds, and asset managers. In short: the sell side makes and sells the investments; the buy side buys and manages them.",
+            "The sell side makes and sells investments - like investment banks and brokers. The buy side buys and holds them to make money - like hedge funds, pension funds, and asset managers. Sell side sells, buy side buys.",
+            "sell side", "buy side", "brokers", "hedge funds", "asset managers", "investors");
+
+        Add("Investment Banking", Level.Medium,
+            "What is an IPO and why does a company do one?",
+            "An IPO (Initial Public Offering) is when a private company sells its shares to the public for the first time and becomes listed on a stock exchange. Companies do it to raise a large amount of capital for growth, to let early investors and founders cash out some of their stake, and to gain public prestige and a market value for their shares. The investment bank underwrites the IPO: it helps set the price, markets the shares to investors (the 'roadshow'), and guarantees the sale. The trade-off is more regulation, public reporting, and pressure from shareholders.",
+            "An IPO is when a private company sells shares to the public for the first time and gets listed on a stock market. It does this to raise money for growth and let early investors cash out. The bank helps set the price and sell the shares. The downside is more rules and public reporting.",
+            "initial public offering", "go public", "raise capital", "underwriting", "roadshow", "regulation");
+
+        Add("Investment Banking", Level.Medium,
+            "What is the difference between debt financing and equity financing?",
+            "Debt financing means borrowing money (like issuing bonds or taking a loan) that must be repaid with interest; the lender does not own part of the company, and interest is usually tax-deductible, but the debt must be paid back on schedule. Equity financing means raising money by selling ownership (shares); there is no repayment, but the new owners share in profits and get voting rights, diluting existing owners. Debt keeps ownership but adds fixed repayment risk; equity avoids repayment but gives away part of the company.",
+            "Debt financing is borrowing money that you pay back with interest - the lender owns nothing. Equity financing is selling ownership shares - no repayment, but new owners share the profits and control. Debt keeps ownership but must be repaid; equity gives away part of the company.",
+            "debt", "equity", "bonds", "shares", "interest", "ownership dilution");
+
+        // ---------------- Battery / Battery Bank ----------------
+        Add("Battery", Level.Easy,
+            "What is a battery bank?",
+            "A battery bank is a group of individual batteries connected together to store more energy or deliver more power than a single battery could. Connecting batteries in series increases the total voltage, while connecting them in parallel increases the total capacity (amp-hours) and runtime. Battery banks are used in solar power systems, data-center backup (UPS), telecom towers, and electric vehicles to provide reliable stored energy that can be used when the main supply is off or during peak demand.",
+            "A battery bank is many batteries joined together to store more energy or give more power than one battery. Joining in series raises the voltage; joining in parallel raises the capacity. They are used in solar systems, backup power, and electric vehicles.",
+            "batteries connected", "series", "parallel", "voltage", "capacity", "energy storage");
+
+        Add("Battery", Level.Easy,
+            "What is the difference between connecting batteries in series and in parallel?",
+            "In a series connection you join the positive terminal of one battery to the negative of the next; this adds up the voltages while the capacity (amp-hours) stays the same - for example two 12V 100Ah batteries in series give 24V 100Ah. In a parallel connection you join all the positive terminals together and all the negative terminals together; this keeps the voltage the same but adds up the capacity - two 12V 100Ah batteries in parallel give 12V 200Ah. Series is for higher voltage; parallel is for longer runtime.",
+            "Series joins positive to negative and adds the voltage, keeping capacity the same (two 12V become 24V). Parallel joins all positives and all negatives together and adds the capacity, keeping voltage the same (100Ah becomes 200Ah). Series for more voltage, parallel for more runtime.",
+            "series", "parallel", "voltage adds", "capacity adds", "amp-hours", "runtime");
+
+        Add("Battery", Level.Medium,
+            "What is a Battery Management System (BMS) and why is it needed?",
+            "A Battery Management System (BMS) is the electronic control system that protects and manages a battery bank, especially lithium-ion. It monitors each cell's voltage, current, and temperature, and it balances the cells so they charge and discharge evenly. It prevents dangerous conditions like overcharging, over-discharging, overheating, and short circuits by disconnecting the battery when needed. A BMS is needed because lithium cells can be damaged or even catch fire if pushed outside safe limits, and balancing extends the pack's life and usable capacity.",
+            "A BMS is the electronics that protect a battery bank. It watches each cell's voltage, current, and temperature, keeps the cells balanced, and cuts off the battery if it overcharges, over-discharges, or overheats. It is needed to keep lithium batteries safe and to make them last longer.",
+            "cell monitoring", "balancing", "overcharge protection", "temperature", "safety", "battery life");
+
+        Add("Battery", Level.Medium,
+            "What is the difference between energy (Wh) and power (W) in a battery?",
+            "Power, measured in watts (W), is the rate at which a battery delivers or absorbs energy at a given moment - how fast it can work. Energy, measured in watt-hours (Wh), is the total amount of work stored - how much it can do over time. Energy is roughly power multiplied by time (Wh = W x hours). For example, a battery delivering 100W for 5 hours uses 500Wh. When sizing a battery bank you need enough power to run the load at once and enough energy to run it for the required duration.",
+            "Power (watts) is how fast a battery gives energy right now. Energy (watt-hours) is the total amount it can give over time. Energy is roughly power times hours - 100W for 5 hours is 500Wh. You need enough power to run the load and enough energy to run it long enough.",
+            "watts", "watt-hours", "rate vs total", "power = rate", "energy = capacity", "sizing");
+
         return list;
     }
 }
