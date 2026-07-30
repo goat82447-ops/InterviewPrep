@@ -162,6 +162,32 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.Redirect("/ask");
     });
 
+    // Agent mode: name a project, choose where to create it, and describe it.
+    // The AI scaffolds a whole new project into a new folder anywhere you pick
+    // (Desktop, C:\, etc.) but never touches this app. Like a CLI coding agent.
+    app.MapGet("/agent", () =>
+        Results.Content(
+            AgentPage.Render(null, null, null, null, null,
+                config.Providers, config.GetProvider(null).Id),
+            "text/html"));
+
+    app.MapPost("/agent", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var task = form["task"].ToString();
+        var project = form["project"].ToString();
+        var location = form["location"].ToString();
+        var model = form["model"].ToString();
+
+        using var agent = new CodeAgent(config);
+        var (message, files, notice, source, projectFolder) = await agent.RunAsync(task, project, location, model);
+
+        var selected = config.GetProvider(model).Id;
+        var html = AgentPage.Render(task, project, location, message, files,
+            config.Providers, selected, notice, source, projectFolder);
+        return Results.Content(html, "text/html");
+    });
+
     // Mock interview: answer a question, get coached, then face a follow-up.
     app.MapGet("/mock", (HttpRequest request) =>
     {
