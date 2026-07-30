@@ -10,7 +10,7 @@ internal static class AskPage
     public static string Render(
         string? question, string? answer, string? source, bool aiEnabled,
         IReadOnlyList<AiProvider> models, string? selectedModel, string? notice = null,
-        string? usage = null)
+        string? usage = null, string? sessionId = null)
     {
         var sb = new StringBuilder();
         sb.Append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">");
@@ -74,7 +74,7 @@ internal static class AskPage
         // Answer FIRST, right under the button, so it is the very first thing you
         // see (no scrolling). Your question already shows in the text box above, so
         // we don't repeat it here. Memory is still kept for follow-ups.
-        var convo = InterviewPrep.Services.StudyAssistant.GetConversation();
+        var convo = InterviewPrep.Services.StudyAssistant.GetConversation(sessionId);
         if (convo.Count > 0)
         {
             // Find the most recent answer.
