@@ -40,98 +40,61 @@ public sealed class StudyAssistant : IDisposable
     /// <summary>One line of the running conversation.</summary>
     public readonly record struct ChatTurn(string Role, string Content);
 
-    private static readonly object ConvLock = new();
-
-    // Chat is saved to this small file so follow-up context survives an app
-    // restart. It lives at the project root and is git-ignored (personal data).
-    private static readonly string ConvFile =
-        Path.Combine(ProjectPaths.ProjectRoot, "conversation.json");
-
-    private static readonly List<ChatTurn> Conversation = LoadConversation();
+    // Each browser (user) gets its OWN chat history, kept in memory and keyed by
+    // a session id that comes from a per-browser cookie. This is why two people
+    // using the site at the same time never see each other's questions or answers
+    // \u2014 every user has a separate conversation.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<ChatTurn>>
+        Conversations = new();
     private const int MaxHistoryMessages = 6; // ~3 back-and-forth exchanges
 
-    /// <summary>The current chat transcript (oldest first).</summary>
-    public static IReadOnlyList<ChatTurn> GetConversation()
+    /// <summary>Returns the chat list that belongs to one user's session,
+    /// creating an empty one the first time that user is seen.</summary>
+    private static List<ChatTurn> ConversationFor(string? sessionId)
+        => Conversations.GetOrAdd(
+            string.IsNullOrWhiteSpace(sessionId) ? "default" : sessionId,
+            _ => new List<ChatTurn>());
+
+    /// <summary>One user's current chat transcript (oldest first).</summary>
+    public static IReadOnlyList<ChatTurn> GetConversation(string? sessionId)
     {
-        lock (ConvLock)
+        var conv = ConversationFor(sessionId);
+        lock (conv)
         {
-            return Conversation.ToArray();
+            return conv.ToArray();
         }
     }
 
-    /// <summary>Starts a fresh topic by forgetting the earlier conversation.</summary>
-    public static void ClearConversation()
+    /// <summary>Starts a fresh topic by forgetting only this user's earlier chat.</summary>
+    public static void ClearConversation(string? sessionId)
     {
-        lock (ConvLock)
+        var conv = ConversationFor(sessionId);
+        lock (conv)
         {
-            Conversation.Clear();
-            SaveConversation();
+            conv.Clear();
         }
     }
 
-    private static ChatTurn[] SnapshotHistory()
+    private static ChatTurn[] SnapshotHistory(string? sessionId)
     {
-        lock (ConvLock)
+        var conv = ConversationFor(sessionId);
+        lock (conv)
         {
-            return Conversation.ToArray();
+            return conv.ToArray();
         }
     }
 
-    private static void RecordTurn(string question, string answer)
+    private static void RecordTurn(string? sessionId, string question, string answer)
     {
-        lock (ConvLock)
+        var conv = ConversationFor(sessionId);
+        lock (conv)
         {
-            Conversation.Add(new ChatTurn("user", question));
-            Conversation.Add(new ChatTurn("assistant", answer));
-            while (Conversation.Count > MaxHistoryMessages)
+            conv.Add(new ChatTurn("user", question));
+            conv.Add(new ChatTurn("assistant", answer));
+            while (conv.Count > MaxHistoryMessages)
             {
-                Conversation.RemoveAt(0);
+                conv.RemoveAt(0);
             }
-
-            SaveConversation();
-        }
-    }
-
-    /// <summary>Loads the saved chat from disk (best-effort). Returns an empty
-    /// list if the file is missing or unreadable, so the app always starts.</summary>
-    private static List<ChatTurn> LoadConversation()
-    {
-        try
-        {
-            if (File.Exists(ConvFile))
-            {
-                var saved = JsonSerializer.Deserialize<List<ChatTurn>>(
-                    File.ReadAllText(ConvFile));
-                if (saved is not null)
-                {
-                    if (saved.Count > MaxHistoryMessages)
-                    {
-                        saved.RemoveRange(0, saved.Count - MaxHistoryMessages);
-                    }
-
-                    return saved;
-                }
-            }
-        }
-        catch
-        {
-            // Missing or corrupt file \u2014 just start with an empty chat.
-        }
-
-        return new List<ChatTurn>();
-    }
-
-    /// <summary>Writes the current chat to disk (best-effort). Callers hold
-    /// <see cref="ConvLock"/>. Disk errors are ignored so answering never fails.</summary>
-    private static void SaveConversation()
-    {
-        try
-        {
-            File.WriteAllText(ConvFile, JsonSerializer.Serialize(Conversation));
-        }
-        catch
-        {
-            // Persisting is best-effort; ignore disk errors.
         }
     }
 
@@ -226,7 +189,7 @@ public sealed class StudyAssistant : IDisposable
     }
 
     public async Task<(string answer, string source, string? notice, string? usage)> AnswerAsync(
-        string question, string? providerId = null, CancellationToken ct = default)
+        string question, string? providerId = null, string? sessionId = null, CancellationToken ct = default)
     {
         question = (question ?? string.Empty).Trim();
         if (question.Length == 0)
@@ -259,15 +222,16 @@ public sealed class StudyAssistant : IDisposable
         AiProvider? failedProvider = null;
         string? lastUsage = null;
 
-        // Snapshot the running chat so follow-up questions keep their context.
-        var history = SnapshotHistory();
+        // Snapshot this user's running chat so follow-up questions keep their
+        // context — kept separate per session so users never mix.
+        var history = SnapshotHistory(sessionId);
 
         // If this exact question was answered before AND we are starting fresh
         // (no ongoing conversation), reuse the saved answer instead of spending
         // an API request. Follow-ups (history present) always get a live answer.
         if (history.Length == 0 && TryGetCached(question, out var cached))
         {
-            RecordTurn(question, cached.Answer);
+            RecordTurn(sessionId, question, cached.Answer);
             return (cached.Answer, cached.Source + " \u00b7 saved", null, null);
         }
 
@@ -276,7 +240,7 @@ public sealed class StudyAssistant : IDisposable
             var (ai, failure, usage) = await AskOpenAiAsync(question, p, history, ct);
             if (!string.IsNullOrWhiteSpace(ai))
             {
-                RecordTurn(question, ai!);
+                RecordTurn(sessionId, question, ai!);
                 StoreCached(question, ai!, p.DisplayName);
                 return (ai!, p.DisplayName, null, usage);
             }
