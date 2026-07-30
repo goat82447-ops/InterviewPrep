@@ -93,6 +93,14 @@ public sealed class AppConfig
                 "gemini", "Google Gemini \u00b7 2.0 Flash (free)", null,
                 "gemini-2.0-flash",
                 "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"),
+            ["gemini-pro"] = new(
+                "gemini-pro", "Google Gemini \u00b7 2.5 Pro (best quality)", null,
+                "gemini-2.5-pro",
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"),
+            ["gemini-flash25"] = new(
+                "gemini-flash25", "Google Gemini \u00b7 2.5 Flash (fast)", null,
+                "gemini-2.5-flash",
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"),
             ["openrouter"] = new(
                 "openrouter", "OpenRouter \u00b7 Llama 3.3 70B (free)", null,
                 "meta-llama/llama-3.3-70b-instruct:free",
@@ -120,7 +128,7 @@ public sealed class AppConfig
                 "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
+        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
         // Build the list of config files to read, in priority order (later files
@@ -276,6 +284,25 @@ public sealed class AppConfig
                 if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
                 {
                     byId[id] = byId[id] with { ApiKey = groqKey };
+                }
+            }
+        }
+
+        // One Gemini key powers every Gemini model (gemini flash, gemini-pro,
+        // gemini-flash25). Share the "gemini" key with the other gemini-* models
+        // so the user only pastes their Google AI Studio key once.
+        var geminiEnv = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        var geminiKey = !string.IsNullOrWhiteSpace(geminiEnv)
+            ? geminiEnv
+            : (byId.TryGetValue("gemini", out var gm) ? gm.ApiKey : null);
+        if (!string.IsNullOrWhiteSpace(geminiKey))
+        {
+            foreach (var id in byId.Keys.Where(k =>
+                         k.StartsWith("gemini", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
+                {
+                    byId[id] = byId[id] with { ApiKey = geminiKey };
                 }
             }
         }

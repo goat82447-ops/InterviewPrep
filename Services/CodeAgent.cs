@@ -70,7 +70,9 @@ public sealed class CodeAgent : IDisposable
     public CodeAgent(AppConfig config)
     {
         _config = config;
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+        // Bigger, enterprise-style apps take longer to generate, so allow a
+        // generous timeout for the model to stream a large multi-file reply.
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(300) };
 
         // The app's OWN project folder — protected, never written into.
         _appProjectRoot = Path.GetFullPath(ProjectPaths.ProjectRoot);
@@ -151,8 +153,9 @@ public sealed class CodeAgent : IDisposable
         }
 
         var system =
-            "You are a coding agent like Copilot CLI or Claude CLI. You SCAFFOLD a brand-new, " +
-            "self-contained project from scratch based on the user's request. You MUST reply with " +
+            "You are a senior software engineer and coding agent like Copilot CLI or Claude CLI. You " +
+            "SCAFFOLD a brand-new, self-contained, PRODUCTION-QUALITY project from scratch based on the " +
+            "user's request. You MUST reply with " +
             "ONLY a single JSON object \u2014 no prose, no markdown, no code fences. The JSON shape is EXACTLY:\n" +
             "{ \"message\": \"one short sentence describing the project you created\", " +
             "\"files\": [ { \"path\": \"relative/path/inside/the/project.ext\", \"content\": \"the FULL file content\" } ] }\n" +
@@ -162,8 +165,25 @@ public sealed class CodeAgent : IDisposable
             "- Output the COMPLETE final content of each file, never a diff or a partial file.\n" +
             "- Paths are RELATIVE to the new project folder, with forward slashes. Do NOT include the " +
             "project folder name itself, and never use an absolute path, a drive letter, a leading slash, or '..'.\n" +
-            "- Pick a sensible tech stack for the request (default to C# .NET 8 console app unless the user asks otherwise).\n" +
-            "- Write correct, compilable, idiomatic code. Keep the file list focused but complete.\n" +
+            "- Pick a sensible tech stack for the request (default to C# .NET 8 unless the user asks otherwise).\n" +
+            "- Write correct, compilable, idiomatic, production-grade code. Keep the file list focused but complete.\n" +
+            "- BUILD LIKE A REAL ENGINEER, not a toy. For anything beyond a trivial script, use a clean, " +
+            "layered structure and separate files by responsibility: e.g. Models/entities, Services/business " +
+            "logic, Data/repositories or storage, and the app entry point. Use dependency injection, interfaces, " +
+            "async where appropriate, input validation, and proper error handling. Add configuration files " +
+            "(appsettings.json, .env.example, etc.) when they fit. Add a .gitignore.\n" +
+            "- For web/API requests, include real endpoints, a layered structure, and DTOs/models. For apps " +
+            "with data, use a simple persistent store (in-memory or a local file/SQLite) with a repository layer.\n" +
+            "- Where it adds value and stays within the size budget, include a small unit-test project or a few " +
+            "tests so the app is verifiable.\n" +
+            "- Aim for a realistic, enterprise-style layout that a developer could extend \u2014 but keep every " +
+            "file complete and the whole project buildable. Prefer a well-structured app of many small, correct " +
+            "files over one giant file.\n" +
+            "- The user may mis-spell words or use broken/short English. Do NOT copy the typos. " +
+            "Figure out what they REALLY mean and build that. For example 'creat calclator ap' means " +
+            "'create a calculator app', 'tik tak toe' means 'tic-tac-toe game', 'weathr' means 'weather'. " +
+            "Silently correct spelling and grammar, infer the intended project, and scaffold the correct thing. " +
+            "Only if the request is truly impossible to guess, make a reasonable simple choice and note it in the message.\n" +
             "- Return ONLY the JSON object.";
 
         var userMsg = $"Project folder name: {folderName}\nTask: {task}";
@@ -214,7 +234,11 @@ public sealed class CodeAgent : IDisposable
                     new { role = "user", content = user },
                 },
                 temperature = 0.1,
-                max_tokens = 3000,
+                // Large-but-safe budget: big enough for a complete multi-layer
+                // app, but within the per-request completion limit that every
+                // provider (incl. NVIDIA NIM) accepts, so we don't get a 400 and
+                // fall back to a weaker model.
+                max_tokens = 8000,
             };
 
             using var request = new HttpRequestMessage(HttpMethod.Post, provider.BaseUrl);
