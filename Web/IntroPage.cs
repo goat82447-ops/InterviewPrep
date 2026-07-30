@@ -20,8 +20,8 @@ internal static class IntroPage
 
         sb.Append("<header class=\"hero\"><div class=\"hero-inner\">");
         sb.Append("<div class=\"brand\"><span class=\"logo\">\ud83d\ude4b</span><div>");
-        sb.Append("<div class=\"brand-name\">[Name]</div>");
-        sb.Append("<div class=\"brand-tag\">Senior .NET / Azure Full-Stack Developer \u00b7 ~8 years \u00b7 Hyderabad</div>");
+        sb.Append("<div class=\"brand-name\">K  B</div>");
+        sb.Append("<div class=\"brand-tag\">Azure DevOps / CI-CD &amp; .NET Engineer \u00b7 ~8 years \u00b7 Hyderabad</div>");
         sb.Append("</div></div>");
         sb.Append("<span class=\"mode\">Interview-ready intro</span>");
         sb.Append("</div></header>");
@@ -47,10 +47,12 @@ internal static class IntroPage
         sb.Append("<div class=\"cardhead\"><span class=\"badge\">Full version \u00b7 ~2 min</span>");
         sb.Append("<button class=\"copy\" type=\"button\" data-copy=\"full\">\ud83d\udccb Copy</button></div>");
         sb.Append("<div class=\"speech\" id=\"full\">");
-        sb.Append("<p>Hi, I'm <b>[Name]</b>, a Senior .NET and Azure <b>full-stack developer</b> with around <b>8 years</b> of experience building and maintaining scalable enterprise web applications. Currently I'm with <b>TCS, working for Microsoft</b> on the <b>Dynamics 365 Omnichannel (ACD)</b> platform.</p>");
-        sb.Append("<p>On the <b>backend</b>, I work with <b>C#, .NET 8, ASP.NET Core, Web API, and Entity Framework Core</b> \u2014 designing RESTful microservices with clean architecture, dependency injection, JWT / Azure AD authentication, Serilog logging, and centralized exception handling. On the <b>frontend</b>, I build responsive interfaces with <b>Angular, TypeScript, HTML, and CSS</b>, so I can own a feature end to end. My data layer is <b>SQL Server</b>, where I work with stored procedures, indexing, and query optimization.</p>");
-        sb.Append("<p>A big part of my work is <b>Azure and CI/CD</b>. I design and maintain build and release pipelines using <b>Azure DevOps and GitHub Actions</b>, deploy to <b>Azure App Services and Azure SQL</b>, and safeguard code quality with <b>branch protection rules and pull-request validation</b> across multiple GEOs.</p>");
-        sb.Append("<p>I really enjoy owning features from the database up to the UI, improving deployment reliability, and collaborating with global engineering teams. I'm looking for a <b>full-stack .NET + Azure</b> role where I can contribute to system design and cloud-native development while continuing to grow.</p>");
+        sb.Append("<p>Hi, my name is <b>K  B</b>. I have around <b>8 years</b> of experience in <b>software development, automation, and DevOps engineering</b>.</p>");
+        sb.Append("<p>I started my career working on enterprise application development and spent nearly <b>4 years with Ambluoc</b>, where I was involved in software development and automation activities. Currently, I am working with <b>Tata Consultancy Services</b>, supporting <b>Microsoft's Dynamics 365 Omnichannel and ACD</b> platform.</p>");
+        sb.Append("<p>In my current role, I am responsible for <b>CI/CD pipeline management, release engineering, and production support</b>. I design and maintain <b>Azure DevOps</b> pipelines, implement automation solutions, and ensure smooth application deployments across environments.</p>");
+        sb.Append("<p>I also work closely with <b>global teams</b> to troubleshoot and resolve production issues, including region-specific incidents affecting customers in locations such as <b>Canada</b> and other markets. My responsibilities include <b>root cause analysis, deployment support, monitoring, and improving system reliability</b>.</p>");
+        sb.Append("<p>One of my key contributions has been <b>optimising and standardising CI/CD processes</b>, improving deployment efficiency, reducing manual effort, and ensuring stable releases.</p>");
+        sb.Append("<p>Overall, my expertise lies in <b>Azure DevOps, CI/CD automation, .NET technologies, production support, release management</b>, and problem-solving in large-scale enterprise environments.</p>");
         sb.Append("</div></section>");
 
         // ---- Short version ----
@@ -58,9 +60,9 @@ internal static class IntroPage
         sb.Append("<div class=\"cardhead\"><span class=\"badge short\">Short version \u00b7 ~1 min</span>");
         sb.Append("<button class=\"copy\" type=\"button\" data-copy=\"short\">\ud83d\udccb Copy</button></div>");
         sb.Append("<div class=\"speech\" id=\"short\">");
-        sb.Append("<p>Hi, I'm <b>[Name]</b>, a Senior .NET and Azure full-stack developer with about <b>8 years</b> of experience. Currently I work at <b>TCS for Microsoft</b> on the Dynamics 365 Omnichannel platform.</p>");
-        sb.Append("<p>On the backend I use <b>C#, .NET 8, ASP.NET Core, Web API, and EF Core</b>; on the frontend <b>Angular and TypeScript</b>; and my database is <b>SQL Server</b>. I also design <b>CI/CD pipelines on Azure DevOps and GitHub Actions</b> and deploy to <b>Azure App Services</b>.</p>");
-        sb.Append("<p>I like owning features end to end and delivering reliable, cloud-based solutions, and I'm looking for a <b>full-stack .NET + Azure</b> role where I can grow in system design and cloud.</p>");
+        sb.Append("<p>Hi, I'm <b>K</b>, and I have around <b>8 years</b> of experience in <b>software development, automation, and DevOps</b>. Currently, I work at <b>TCS for Microsoft's Dynamics 365 Omnichannel</b> platform.</p>");
+        sb.Append("<p>My primary responsibilities include managing <b>Azure DevOps CI/CD pipelines</b>, handling <b>production support</b>, resolving critical incidents, and improving deployment automation. I also work on <b>release management, root cause analysis, and reliability improvements</b>.</p>");
+        sb.Append("<p>My core strengths are <b>Azure DevOps, CI/CD automation, .NET technologies, and production support</b>.</p>");
         sb.Append("</div></section>");
 
         // ---- Quick tips ----
