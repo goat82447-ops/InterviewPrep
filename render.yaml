@@ -25,6 +25,12 @@ services:
       # Groq has a free tier and works out of the box.
       - key: GROQ_API_KEY
         sync: false
+      # Google Gemini (current default model). Set your Google AI Studio key here.
+      - key: GEMINI_API_KEY
+        sync: false
+      # NVIDIA (free) — a good backup provider.
+      - key: NVIDIA_API_KEY
+        sync: false
       # Optional — only needed if you want ChatGPT answers (requires OpenAI billing).
       - key: OPENAI_API_KEY
         sync: false
