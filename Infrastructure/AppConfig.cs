@@ -105,6 +105,42 @@ public sealed class AppConfig
                 "openrouter", "OpenRouter \u00b7 Llama 3.3 70B (free)", null,
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-gemma"] = new(
+                "openrouter-gemma", "OpenRouter \u00b7 Google Gemma 3 27B (free)", null,
+                "google/gemma-3-27b-it:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-deepseek"] = new(
+                "openrouter-deepseek", "OpenRouter \u00b7 DeepSeek V3 (free, coding)", null,
+                "deepseek/deepseek-chat-v3-0324:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-deepseek-r1"] = new(
+                "openrouter-deepseek-r1", "OpenRouter \u00b7 DeepSeek R1 (free, reasoning)", null,
+                "deepseek/deepseek-r1:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-qwen-coder"] = new(
+                "openrouter-qwen-coder", "OpenRouter \u00b7 Qwen 2.5 Coder 32B (free, coding)", null,
+                "qwen/qwen-2.5-coder-32b-instruct:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-mistral"] = new(
+                "openrouter-mistral", "OpenRouter \u00b7 Mistral Small 3.1 24B (free)", null,
+                "mistralai/mistral-small-3.1-24b-instruct:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-gptoss"] = new(
+                "openrouter-gptoss", "OpenRouter \u00b7 OpenAI gpt-oss 20B (free)", null,
+                "openai/gpt-oss-20b:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-ling"] = new(
+                "openrouter-ling", "OpenRouter \u00b7 Ling 3.0 Flash (free)", null,
+                "inclusionai/ling-3.0-flash:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-laguna"] = new(
+                "openrouter-laguna", "OpenRouter \u00b7 Laguna S 2.1 (free, coding)", null,
+                "poolside/laguna-s-2.1:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
+            ["openrouter-north-code"] = new(
+                "openrouter-north-code", "OpenRouter \u00b7 Cohere North Mini Code (free, coding)", null,
+                "cohere/north-mini-code:free",
+                "https://openrouter.ai/api/v1/chat/completions"),
             ["nvidia"] = new(
                 "nvidia", "NVIDIA \u00b7 Nemotron Super 49B (best, fast)", null,
                 "nvidia/llama-3.3-nemotron-super-49b-v1.5",
@@ -128,7 +164,7 @@ public sealed class AppConfig
                 "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
+        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "openrouter-gemma", "openrouter-deepseek", "openrouter-deepseek-r1", "openrouter-qwen-coder", "openrouter-mistral", "openrouter-gptoss", "openrouter-ling", "openrouter-laguna", "openrouter-north-code", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
         // Build the list of config files to read, in priority order (later files
@@ -303,6 +339,28 @@ public sealed class AppConfig
                 if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
                 {
                     byId[id] = byId[id] with { ApiKey = geminiKey };
+                }
+            }
+        }
+
+        // One OpenRouter key powers every OpenRouter model (openrouter,
+        // openrouter-gemma, openrouter-deepseek, openrouter-qwen-coder, ...).
+        // Share the "openrouter" key with the other openrouter-* models so the
+        // user only pastes their OpenRouter key once. When one free model hits
+        // its token/quota limit, AnswerAsync automatically falls back to the
+        // next enabled model, so switching happens on its own.
+        var openrouterEnv = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+        var openrouterKey = !string.IsNullOrWhiteSpace(openrouterEnv)
+            ? openrouterEnv
+            : (byId.TryGetValue("openrouter", out var orr) ? orr.ApiKey : null);
+        if (!string.IsNullOrWhiteSpace(openrouterKey))
+        {
+            foreach (var id in byId.Keys.Where(k =>
+                         k.StartsWith("openrouter", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
+                {
+                    byId[id] = byId[id] with { ApiKey = openrouterKey };
                 }
             }
         }
