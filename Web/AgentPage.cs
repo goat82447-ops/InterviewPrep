@@ -38,6 +38,7 @@ internal static class AgentPage
         sb.Append("<a class=\"chip active\" href=\"/agent\">\ud83e\udd16 Agent mode</a>");
         sb.Append("<a class=\"chip\" href=\"/practice\">\ud83c\udf93 Practice questions</a>");
         sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
+        sb.Append("<a class=\"chip\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
         sb.Append("</div>");
