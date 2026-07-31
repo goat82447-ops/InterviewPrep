@@ -812,6 +812,49 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         });
     });
 
+    // Interview mode: a full resume-driven mock with 2 technical rounds, one
+    // managerial round and one HR round. Questions are generated from the
+    // candidate's own resume and tech stack.
+    app.MapGet("/interview", (HttpRequest request) =>
+    {
+        var model = request.Query["model"].ToString();
+        return Results.Content(
+            InterviewPage.Render(config.HasOpenAi, config.Providers, config.GetProvider(model).Id),
+            "text/html");
+    });
+
+    // Give the page the next question for a round (avoids ones already asked).
+    app.MapPost("/interview/question", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var resume = form["resume"].ToString();
+        var stack = form["stack"].ToString();
+        var round = form["round"].ToString();
+        var model = form["model"].ToString();
+        var asked = form["asked"].ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        using var interview = new ResumeInterview(config);
+        var question = await interview.NextQuestionAsync(resume, stack, round, asked, model);
+        return Results.Json(new { question });
+    });
+
+    // Score one answer for a round: return score, feedback and short tips.
+    app.MapPost("/interview/evaluate", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var resume = form["resume"].ToString();
+        var stack = form["stack"].ToString();
+        var round = form["round"].ToString();
+        var question = form["question"].ToString();
+        var answer = form["answer"].ToString();
+        var model = form["model"].ToString();
+
+        using var interview = new ResumeInterview(config);
+        var r = await interview.EvaluateAsync(resume, stack, round, question, answer, model);
+        return Results.Json(new { score = r.Score, feedback = r.Feedback, tips = r.Tips });
+    });
+
     // Settings: paste one API key per provider. Keys are written to a local
     // per-user file and applied immediately (the shared config is reloaded).
     app.MapGet("/settings", () =>
