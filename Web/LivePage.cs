@@ -43,6 +43,7 @@ internal static class LivePage
         sb.Append("<a class=\"chip active\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
+        sb.Append("<a class=\"chip\" href=\"/settings\">\u2699\ufe0f Settings</a>");
         sb.Append("</div>");
 
         // Topic chips
@@ -71,7 +72,8 @@ internal static class LivePage
         // Camera + controls
         sb.Append("<div class=\"stage\">");
         sb.Append("<div class=\"camwrap\"><video id=\"cam\" autoplay playsinline muted></video>");
-        sb.Append("<div id=\"reclamp\" class=\"reclamp\">\u25cf REC</div></div>");
+        sb.Append("<div id=\"reclamp\" class=\"reclamp\">\u25cf REC</div>");
+        sb.Append("<div id=\"camq\" class=\"camq\"></div></div>");
 
         sb.Append("<div class=\"panel\">");
 
@@ -84,8 +86,13 @@ internal static class LivePage
         sb.Append("<span class=\"stat\">Avg (last 5): <b id=\"statAvg\">0</b>/100</span>");
         sb.Append("<span class=\"stat\">Best: <b id=\"statBest\">0</b></span>");
         sb.Append("<span id=\"statTrend\" class=\"stat trend\"></span>");
-        sb.Append("<button id=\"statReset\" class=\"stat-reset\" type=\"button\" title=\"Clear score history\">reset</button>");
+        sb.Append("<span class=\"stat-actions\">");
+        sb.Append("<button id=\"statExport\" class=\"stat-link\" type=\"button\" title=\"Download your results as a text file\">\u2b07 export</button>");
+        sb.Append("<button id=\"statReset\" class=\"stat-link\" type=\"button\" title=\"Clear score history\">reset</button>");
+        sb.Append("</span>");
         sb.Append("</div>");
+
+        sb.Append("<div id=\"weak\" class=\"weak\" hidden></div>");
 
         sb.Append("<div class=\"qlabel\">Question</div>");
         sb.Append($"<div id=\"question\" class=\"question\">{WebUtility.HtmlEncode(question)}</div>");
@@ -159,12 +166,13 @@ internal static class LivePage
         sb.Append(".rules-title{font-weight:800;margin-bottom:6px;}");
         sb.Append(".rules ol{margin:0;padding-left:20px;}.rules li{margin:4px 0;font-size:14px;}");
         sb.Append(".stage{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;}");
-        sb.Append(".camwrap{position:relative;flex:1 1 320px;min-width:280px;background:#0f172a;border-radius:16px;overflow:hidden;aspect-ratio:4/3;}");
+        sb.Append(".camwrap{position:relative;flex:1 1 100%;min-width:280px;background:#0f172a;border-radius:16px;overflow:hidden;aspect-ratio:16/9;max-height:72vh;}");
+        sb.Append(".camq{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.78));color:#fff;font-size:14px;font-weight:600;line-height:1.4;padding:28px 16px 12px;}");
         sb.Append("#cam{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}");
         sb.Append(".reclamp{position:absolute;top:10px;left:10px;background:rgba(220,38,38,.9);color:#fff;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;display:none;}");
         sb.Append(".reclamp.on{display:block;animation:blink 1s infinite;}");
         sb.Append("@keyframes blink{50%{opacity:.35;}}");
-        sb.Append(".panel{flex:1 1 320px;min-width:280px;background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(15,23,42,.07);}");
+        sb.Append(".panel{flex:1 1 100%;min-width:280px;background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(15,23,42,.07);}");
         sb.Append(".modelrow{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}");
         sb.Append(".mlabel{font-size:13px;font-weight:700;color:#475569;}");
         sb.Append(".model{border:1px solid #cbd5e1;border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit;font-weight:600;color:#0f172a;background:#fff;cursor:pointer;}");
@@ -172,7 +180,16 @@ internal static class LivePage
         sb.Append(".stats-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#f0fdfa;border:1px solid #99f6e4;border-radius:12px;padding:8px 14px;margin-bottom:12px;font-size:13px;color:#0f766e;}");
         sb.Append(".stat b{color:#0f172a;font-size:15px;}");
         sb.Append(".stat.trend{font-weight:700;}");
-        sb.Append(".stat-reset{margin-left:auto;background:none;border:none;color:#0891b2;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;}");
+        sb.Append(".stat-actions{margin-left:auto;display:flex;gap:12px;}");
+        sb.Append(".stat-link{background:none;border:none;color:#0891b2;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit;padding:0;}");
+        sb.Append(".weak{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:10px 14px;margin-bottom:12px;}");
+        sb.Append(".weak-title{font-size:12px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}");
+        sb.Append(".weak-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0;}");
+        sb.Append(".weak-topic{font-weight:700;color:#0f172a;font-size:14px;}");
+        sb.Append(".weak-avg{font-size:12.5px;color:#b45309;}");
+        sb.Append(".weak-go{margin-left:auto;font-size:12.5px;font-weight:700;color:#0891b2;text-decoration:none;}");
+        sb.Append(".weak-go:hover{text-decoration:underline;}");
+        sb.Append(".rmeta{font-size:13px;color:#475569;margin:8px 0 2px;font-weight:600;}");
         sb.Append(".qlabel,.live-label{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:6px;}");
         sb.Append(".question{font-size:17px;font-weight:700;color:#0f172a;margin:6px 0 12px;line-height:1.4;}");
         sb.Append(".transcript{min-height:74px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;font-size:14.5px;line-height:1.5;background:#f8fafc;margin:6px 0 12px;}");
@@ -197,7 +214,15 @@ internal static class LivePage
         sb.Append(".rsec{margin-top:14px;}.rsec h4{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;}");
         sb.Append(".rsec ul{margin:0;padding-left:20px;}.rsec li{margin:4px 0;font-size:14.5px;line-height:1.45;}");
         sb.Append(".model-ans{background:#ecfeff;border:1px solid #a5f3fc;border-radius:12px;padding:14px 16px;margin-top:14px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;}");
-        sb.Append("@media(max-width:560px){.hero-inner{flex-wrap:wrap;}}");
+        sb.Append("@media(max-width:560px){");
+        sb.Append(".hero{padding:20px 16px;}.hero-inner{flex-wrap:wrap;}");
+        sb.Append(".wrap{padding:14px 12px 48px;}");
+        sb.Append(".stage{gap:12px;}");
+        sb.Append(".panel{padding:14px;}");
+        sb.Append(".controls .btn{flex:1 1 46%;text-align:center;}");
+        sb.Append(".weak-go{margin-left:0;}");
+        sb.Append(".stat-actions{margin-left:0;width:100%;}");
+        sb.Append("}");
         sb.Append("</style>");
     }
 
@@ -208,6 +233,7 @@ internal static class LivePage
 (function(){
   var camEl=document.getElementById('cam');
   var recLamp=document.getElementById('reclamp');
+  var camqEl=document.getElementById('camq');
   var startBtn=document.getElementById('startBtn');
   var answerBtn=document.getElementById('answerBtn');
   var submitBtn=document.getElementById('submitBtn');
@@ -226,15 +252,39 @@ internal static class LivePage
   var statBest=document.getElementById('statBest');
   var statTrend=document.getElementById('statTrend');
   var statReset=document.getElementById('statReset');
-  var STORE='liveScores';
+  var statExport=document.getElementById('statExport');
+  var weakEl=document.getElementById('weak');
+  var LOG='liveLog';
+  var answerStart=0, lastDuration=0, lastFillers={total:0,detail:[]};
+  var FILLERS=['um','uh','er','hmm','like','actually','basically','literally','you know','i mean','sort of','kind of'];
 
-  function loadScores(){ try{ return JSON.parse(localStorage.getItem(STORE)||'[]'); }catch(e){ return []; } }
-  function saveScores(a){ try{ localStorage.setItem(STORE, JSON.stringify(a.slice(-50))); }catch(e){} }
+  function loadLog(){
+    try{
+      var raw=localStorage.getItem(LOG);
+      if(raw){ return JSON.parse(raw)||[]; }
+      var old=JSON.parse(localStorage.getItem('liveScores')||'[]');
+      if(old&&old.length){ return old.map(function(n){ return {s:n|0,t:'General',vd:'',d:new Date().toISOString(),dur:0,f:0}; }); }
+      return [];
+    }catch(e){ return []; }
+  }
+  function saveLog(a){ try{ localStorage.setItem(LOG, JSON.stringify(a.slice(-100))); }catch(e){} }
+
+  function countFillers(text){
+    var t=' '+(text||'').toLowerCase().replace(/[^a-z\s]/g,' ')+' ';
+    var total=0, detail=[];
+    FILLERS.forEach(function(f){
+      var re=new RegExp('\\s'+f.replace(/ /g,'\\s+')+'\\s','g');
+      var m=t.match(re); var c=m?m.length:0;
+      if(c>0){ total+=c; detail.push(f+'\u00d7'+c); }
+    });
+    return {total:total, detail:detail};
+  }
 
   function renderStats(){
-    var a=loadScores();
-    if(!a.length){ statsEl.hidden=true; return; }
+    var log=loadLog();
+    if(!log.length){ statsEl.hidden=true; return; }
     statsEl.hidden=false;
+    var a=log.map(function(e){ return e.s; });
     var last5=a.slice(-5);
     var avg=Math.round(last5.reduce(function(s,x){return s+x;},0)/last5.length);
     statCount.textContent=a.length;
@@ -247,10 +297,60 @@ internal static class LivePage
     } else { statTrend.textContent=''; }
   }
 
-  function pushScore(n){ var a=loadScores(); a.push(Math.max(0,Math.min(100,n|0))); saveScores(a); renderStats(); }
+  function renderWeak(){
+    if(!weakEl){ return; }
+    var log=loadLog();
+    if(log.length<2){ weakEl.hidden=true; return; }
+    var byTopic={};
+    log.forEach(function(e){ var k=e.t||'General'; (byTopic[k]=byTopic[k]||[]).push(e.s); });
+    var rows=Object.keys(byTopic).map(function(k){
+      var arr=byTopic[k];
+      var avg=Math.round(arr.reduce(function(s,x){return s+x;},0)/arr.length);
+      return {topic:k, avg:avg, n:arr.length};
+    }).sort(function(x,y){ return x.avg-y.avg; });
+    var weak=rows.filter(function(r){ return r.avg<70; }).slice(0,3);
+    if(!weak.length){ weakEl.hidden=true; return; }
+    var h='<div class=""weak-title"">\ud83c\udfaf Focus next on</div>';
+    weak.forEach(function(r){
+      var enc=encodeURIComponent(r.topic==='General'?'':r.topic);
+      h+='<div class=""weak-row""><span class=""weak-topic"">'+esc(r.topic)+'</span>'+
+         '<span class=""weak-avg"">avg '+r.avg+'/100 \u00b7 '+r.n+' tries</span>'+
+         '<a class=""weak-go"" href=""/practice?topic='+enc+'"">Practice \u2192</a></div>';
+    });
+    weakEl.innerHTML=h;
+    weakEl.hidden=false;
+  }
 
-  if(statReset){ statReset.addEventListener('click',function(){ saveScores([]); renderStats(); }); }
-  renderStats();
+  function pushResult(v){
+    var a=loadLog();
+    a.push({ s:Math.max(0,Math.min(100,(v.score||0)|0)), t:(topicEl.value||'General'),
+             vd:v.verdict||'', d:new Date().toISOString(), dur:lastDuration, f:lastFillers.total });
+    saveLog(a); renderStats(); renderWeak();
+  }
+
+  function exportLog(){
+    var a=loadLog();
+    if(!a.length){ setStatus('Nothing to export yet. Answer a question first.'); return; }
+    var lines=['Krishnaagent - Live interview results','Exported '+new Date().toLocaleString(),''];
+    a.forEach(function(e,i){
+      lines.push((i+1)+'. '+(e.t||'General')+' - '+(e.vd||'-')+' - '+e.s+'/100'+
+        (e.dur?(' - '+e.dur+'s'):'')+(e.f?(' - '+e.f+' fillers'):'')+' - '+new Date(e.d).toLocaleString());
+    });
+    var scores=a.map(function(e){ return e.s; });
+    var avg=Math.round(scores.reduce(function(s,x){return s+x;},0)/scores.length);
+    lines.push(''); lines.push('Answers: '+a.length+'   Average: '+avg+'/100   Best: '+Math.max.apply(null,scores));
+    var blob=new Blob([lines.join('\n')],{type:'text/plain'});
+    var url=URL.createObjectURL(blob);
+    var link=document.createElement('a');
+    link.href=url; link.download='interview-results.txt';
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+    setStatus('Exported '+a.length+' results to interview-results.txt.');
+  }
+
+  if(statReset){ statReset.addEventListener('click',function(){ saveLog([]); try{ localStorage.removeItem('liveScores'); }catch(e){} renderStats(); renderWeak(); }); }
+  if(statExport){ statExport.addEventListener('click', exportLog); }
+  renderStats(); renderWeak();
 
   function setStatus(t){ statusEl.textContent=t; }
 
@@ -315,6 +415,7 @@ internal static class LivePage
 
   answerBtn.addEventListener('click', function(){
     if(!recog){ recog=setupRecognition(); }
+    answerStart=Date.now();
     finalText=transcriptEl.textContent?transcriptEl.textContent+' ':'';
     if(recog){
       listening=true;
@@ -337,6 +438,8 @@ internal static class LivePage
     submitBtn.disabled=true;
     var answer=(transcriptEl.textContent||'').trim();
     if(!answer){ setStatus('No answer captured. Speak or type something, then submit again.'); submitBtn.disabled=false; return; }
+    lastDuration=answerStart?Math.round((Date.now()-answerStart)/1000):0;
+    lastFillers=countFillers(answer);
     setStatus('Interviewer is judging your answer...');
     try{
       var body=new URLSearchParams();
@@ -358,8 +461,12 @@ internal static class LivePage
   function showResult(v){
     var cls=v.verdict==='Selected'?'sel':(v.verdict==='Rejected'?'rej':'bor');
     var h='<div class=""verdict""><span class=""badge '+cls+'"">'+esc(v.verdict)+'</span>'+
-          '<span class=""score"">Score: '+(v.score||0)+' / 100</span></div>'+
-          '<div class=""rfb"">'+esc(v.feedback)+'</div>';
+          '<span class=""score"">Score: '+(v.score||0)+' / 100</span></div>';
+    if(lastDuration||lastFillers.total){
+      h+='<div class=""rmeta"">\u23f1\ufe0f '+lastDuration+'s to answer'+
+         (lastFillers.total?(' \u00b7 \ud83d\udde3\ufe0f '+lastFillers.total+' filler words ('+lastFillers.detail.join(', ')+')'):' \u00b7 \ud83d\udc4d clean, no filler words')+'</div>';
+    }
+    h+='<div class=""rfb"">'+esc(v.feedback)+'</div>';
     if(v.drawbacks&&v.drawbacks.length){
       h+='<div class=""rsec""><h4>\u26a0\ufe0f Your drawbacks</h4><ul>';
       v.drawbacks.forEach(function(d){ h+='<li>'+esc(d)+'</li>'; });
@@ -378,7 +485,7 @@ internal static class LivePage
     resultEl.hidden=false;
     resultEl.scrollIntoView({behavior:'smooth',block:'start'});
     setStatus('Done. Press Next question to continue, or Start again on a new topic.');
-    pushScore(v.score||0);
+    pushResult(v);
     speak(v.verdict+'. '+(v.feedback||''));
   }
 
@@ -391,6 +498,7 @@ internal static class LivePage
       questionEl.textContent=d.question;
       transcriptEl.textContent='';
       finalText='';
+      syncCamQ();
       resultEl.hidden=true;
       answerBtn.disabled=true;
       submitBtn.disabled=true;
@@ -398,6 +506,16 @@ internal static class LivePage
       setStatus('New question ready. Press Start to hear it, then Answer.');
     }catch(e){ setStatus('Could not load a new question.'); }
   });
+
+  function syncCamQ(){ if(camqEl){ camqEl.textContent=(questionEl.textContent||'').trim(); } }
+  syncCamQ();
+
+  function askCamera(){
+    var ok=window.confirm('Turn on your camera for the interview?\n\nSit straight, like a real interview. Click OK to turn it on now.');
+    if(ok){ startCamera(); setStatus('Camera on. Press Start to hear the rules and the question.'); }
+    else { setStatus('Camera is off. Press Start when you are ready to allow it.'); }
+  }
+  askCamera();
 })();
 ");
         sb.Append("</script>");
