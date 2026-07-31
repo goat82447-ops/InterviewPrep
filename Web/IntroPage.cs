@@ -20,7 +20,7 @@ internal static class IntroPage
 
         sb.Append("<header class=\"hero\"><div class=\"hero-inner\">");
         sb.Append("<div class=\"brand\"><span class=\"logo\">\ud83d\ude4b</span><div>");
-        sb.Append("<div class=\"brand-name\">K  B</div>");
+        sb.Append("<div class=\"brand-name\">Krishna Kumar Bandoju</div>");
         sb.Append("<div class=\"brand-tag\">Azure DevOps / CI-CD &amp; .NET Engineer \u00b7 ~8 years \u00b7 Hyderabad</div>");
         sb.Append("</div></div>");
         sb.Append("<span class=\"mode\">Interview-ready intro</span>");
@@ -34,6 +34,7 @@ internal static class IntroPage
         sb.Append("<a class=\"chip\" href=\"/ask\">\ud83d\udca1 Ask &amp; Learn</a>");
         sb.Append("<a class=\"chip\" href=\"/practice\">\ud83c\udf93 Practice questions</a>");
         sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
+        sb.Append("<a class=\"chip\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
         sb.Append("</div>");
@@ -47,7 +48,7 @@ internal static class IntroPage
         sb.Append("<div class=\"cardhead\"><span class=\"badge\">Full version \u00b7 ~2 min</span>");
         sb.Append("<button class=\"copy\" type=\"button\" data-copy=\"full\">\ud83d\udccb Copy</button></div>");
         sb.Append("<div class=\"speech\" id=\"full\">");
-        sb.Append("<p>Hi, my name is <b>K  B</b>. I have around <b>8 years</b> of experience in <b>software development, automation, and DevOps engineering</b>.</p>");
+        sb.Append("<p>Hi, my name is <b>Krishna Kumar Bandoju</b>. I have around <b>8 years</b> of experience in <b>software development, automation, and DevOps engineering</b>.</p>");
         sb.Append("<p>I started my career working on enterprise application development and spent nearly <b>4 years with Ambluoc</b>, where I was involved in software development and automation activities. Currently, I am working with <b>Tata Consultancy Services</b>, supporting <b>Microsoft's Dynamics 365 Omnichannel and ACD</b> platform.</p>");
         sb.Append("<p>In my current role, I am responsible for <b>CI/CD pipeline management, release engineering, and production support</b>. I design and maintain <b>Azure DevOps</b> pipelines, implement automation solutions, and ensure smooth application deployments across environments.</p>");
         sb.Append("<p>I also work closely with <b>global teams</b> to troubleshoot and resolve production issues, including region-specific incidents affecting customers in locations such as <b>Canada</b> and other markets. My responsibilities include <b>root cause analysis, deployment support, monitoring, and improving system reliability</b>.</p>");
@@ -60,7 +61,7 @@ internal static class IntroPage
         sb.Append("<div class=\"cardhead\"><span class=\"badge short\">Short version \u00b7 ~1 min</span>");
         sb.Append("<button class=\"copy\" type=\"button\" data-copy=\"short\">\ud83d\udccb Copy</button></div>");
         sb.Append("<div class=\"speech\" id=\"short\">");
-        sb.Append("<p>Hi, I'm <b>K</b>, and I have around <b>8 years</b> of experience in <b>software development, automation, and DevOps</b>. Currently, I work at <b>TCS for Microsoft's Dynamics 365 Omnichannel</b> platform.</p>");
+        sb.Append("<p>Hi, I'm <b>Krishna</b>, and I have around <b>8 years</b> of experience in <b>software development, automation, and DevOps</b>. Currently, I work at <b>TCS for Microsoft's Dynamics 365 Omnichannel</b> platform.</p>");
         sb.Append("<p>My primary responsibilities include managing <b>Azure DevOps CI/CD pipelines</b>, handling <b>production support</b>, resolving critical incidents, and improving deployment automation. I also work on <b>release management, root cause analysis, and reliability improvements</b>.</p>");
         sb.Append("<p>My core strengths are <b>Azure DevOps, CI/CD automation, .NET technologies, and production support</b>.</p>");
         sb.Append("</div></section>");
