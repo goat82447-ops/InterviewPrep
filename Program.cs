@@ -812,6 +812,33 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         });
     });
 
+    // Settings: paste one API key per provider. Keys are written to a local
+    // per-user file and applied immediately (the shared config is reloaded).
+    app.MapGet("/settings", () =>
+        Results.Content(SettingsPage.Render(config, null), "text/html"));
+
+    app.MapPost("/settings", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var keys = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var vendor in KeyStore.Vendors)
+        {
+            keys[vendor] = form[vendor].ToString();
+        }
+
+        KeyStore.Save(keys);
+
+        // Reload the shared config so the new keys take effect right away. The
+        // parameter is captured by every route, so reassigning it updates them.
+        config = AppConfig.Load(ProjectPaths.ProjectRoot);
+
+        var saved = keys.Count(k => !string.IsNullOrWhiteSpace(k.Value));
+        var message = saved > 0
+            ? $"Saved. {saved} key{(saved == 1 ? string.Empty : "s")} updated \u2014 the AI features are ready to use."
+            : "Nothing changed \u2014 no new keys were entered.";
+        return Results.Content(SettingsPage.Render(config, message), "text/html");
+    });
+
     // Rapid drills: fast flashcards to make answers automatic.
     app.MapGet("/drills", (HttpRequest request) =>
     {
