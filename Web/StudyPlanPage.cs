@@ -43,8 +43,10 @@ internal static class StudyPlanPage
         sb.Append("<a class=\"chip\" href=\"/ask\">\ud83d\udca1 Ask &amp; Learn</a>");
         sb.Append("<a class=\"chip\" href=\"/practice\">\ud83c\udf93 Practice questions</a>");
         sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
+        sb.Append("<a class=\"chip\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip active\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
+        sb.Append("<a class=\"chip\" href=\"/settings\">\u2699\ufe0f Settings</a>");
         sb.Append("</div>");
 
         sb.Append("<div class=\"intro\">Each day takes about 45\u201360 minutes. Do the four steps in order: " +

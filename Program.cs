@@ -243,11 +243,8 @@ static async Task RunAgentCliAsync(AppConfig config)
         var prev = Console.ForegroundColor;
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine();
-        Console.WriteLine("   .-\"\"\"\"\"-.");
-        Console.WriteLine("  /  ^   ^  \\     \U0001F916 Krishnaagent");
-        Console.WriteLine("  |  (o) (o) |    your CLI coding agent");
-        Console.WriteLine("  \\    <    /     builds a whole new project for you");
-        Console.WriteLine("   '-.___.-'");
+        Console.WriteLine("  \U0001F916 Krishnaagent");
+        Console.WriteLine("  your CLI coding agent \u2014 builds a whole new project for you");
         Console.ForegroundColor = prev;
         Console.WriteLine();
         Console.WriteLine($"  Model    : {CurrentModelName()}");
@@ -767,6 +764,79 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var html = MockPage.Render(shownTopic, turn.FollowUp, turn, config.HasOpenAi,
             config.Providers, selected);
         return Results.Content(html, "text/html");
+    });
+
+    // Live interview: webcam on, the app reads the rules and question out loud,
+    // listens to your spoken answer, then says selected/rejected + how to improve.
+    app.MapGet("/live", (HttpRequest request) =>
+    {
+        var topic = request.Query["topic"].ToString();
+        var model = request.Query["model"].ToString();
+
+        using var live = new LiveInterview(config);
+        var question = live.NextQuestion(topic);
+        var shownTopic = string.IsNullOrWhiteSpace(topic) ? null : topic;
+        return Results.Content(
+            LivePage.Render(shownTopic, question, config.HasOpenAi,
+                config.Providers, config.GetProvider(model).Id),
+            "text/html");
+    });
+
+    // Give the page a fresh spoken-interview question (used by "Next question").
+    app.MapGet("/live/question", (HttpRequest request) =>
+    {
+        var topic = request.Query["topic"].ToString();
+        using var live = new LiveInterview(config);
+        return Results.Json(new { question = live.NextQuestion(topic) });
+    });
+
+    // Judge one spoken answer: return the verdict, drawbacks and improvements.
+    app.MapPost("/live-json", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var topic = form["topic"].ToString();
+        var question = form["question"].ToString();
+        var answer = form["answer"].ToString();
+        var model = form["model"].ToString();
+
+        using var live = new LiveInterview(config);
+        var v = await live.EvaluateAsync(topic, question, answer, model);
+        return Results.Json(new
+        {
+            verdict = v.Verdict,
+            score = v.Score,
+            feedback = v.Feedback,
+            drawbacks = v.Drawbacks,
+            improve = v.Improve,
+            modelAnswer = v.ModelAnswer,
+        });
+    });
+
+    // Settings: paste one API key per provider. Keys are written to a local
+    // per-user file and applied immediately (the shared config is reloaded).
+    app.MapGet("/settings", () =>
+        Results.Content(SettingsPage.Render(config, null), "text/html"));
+
+    app.MapPost("/settings", async (HttpRequest request) =>
+    {
+        var form = await request.ReadFormAsync();
+        var keys = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var vendor in KeyStore.Vendors)
+        {
+            keys[vendor] = form[vendor].ToString();
+        }
+
+        KeyStore.Save(keys);
+
+        // Reload the shared config so the new keys take effect right away. The
+        // parameter is captured by every route, so reassigning it updates them.
+        config = AppConfig.Load(ProjectPaths.ProjectRoot);
+
+        var saved = keys.Count(k => !string.IsNullOrWhiteSpace(k.Value));
+        var message = saved > 0
+            ? $"Saved. {saved} key{(saved == 1 ? string.Empty : "s")} updated \u2014 the AI features are ready to use."
+            : "Nothing changed \u2014 no new keys were entered.";
+        return Results.Content(SettingsPage.Render(config, message), "text/html");
     });
 
     // Rapid drills: fast flashcards to make answers automatic.
