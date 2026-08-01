@@ -550,6 +550,9 @@ public sealed class StudyAssistant : IDisposable
                 "Speak in a natural first-person tone (not a dry textbook) and use simple, clear " +
                 "English because the person is not a native speaker. Do not add any other headings.";
 
+            // Prepend the shared ANSWER_STYLE.md voice/quality guide.
+            system = AnswerStyle.Wrap(system);
+
             // Build the message list: system prompt, then any earlier conversation
             // (so follow-up questions keep context), then the new question.
             var messages = new List<object>
