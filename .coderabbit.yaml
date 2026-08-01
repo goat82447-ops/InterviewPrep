@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration — AI code review on every pull request.
+# Docs: https://docs.coderabbit.ai/getting-started/configure-coderabbit
+language: en-US
+early_access: false
+
+reviews:
+  # "assertive" gives more thorough, senior-level feedback on each PR.
+  profile: assertive
+  # Post a high-level summary and a walkthrough on every PR.
+  high_level_summary: true
+  review_status: true
+  poem: false
+  # Let CodeRabbit request changes when it finds real problems.
+  request_changes_workflow: true
+
+  auto_review:
+    # Review EVERY pull request automatically.
+    enabled: true
+    # Also review draft PRs.
+    drafts: true
+    # Re-review automatically when new commits are pushed.
+    auto_incremental_review: true
+    base_branches:
+      - main
+
+  # Extra automated checks CodeRabbit runs on each PR.
+  tools:
+    github-checks:
+      enabled: true
+
+chat:
+  # Reply to review comments and questions on the PR.
+  auto_reply: true
