@@ -21,7 +21,6 @@ internal static class InterviewPage
         sb.Append("<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">");
         AppendStyles(sb);
         sb.Append("</head><body>");
-        WebChrome.Append(sb);
 
         // Hero
         sb.Append("<header class=\"hero\"><div class=\"hero-inner\">");
@@ -42,7 +41,6 @@ internal static class InterviewPage
         sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
         sb.Append("<a class=\"chip\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
         sb.Append("<a class=\"chip active\" href=\"/interview\">\ud83e\udde9 Interview mode</a>");
-        sb.Append("<a class=\"chip\" href=\"/dashboard\">\ud83d\udcc8 Progress</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
         sb.Append("<a class=\"chip\" href=\"/settings\">\u2699\ufe0f Settings</a>");
@@ -58,11 +56,6 @@ internal static class InterviewPage
 
         // Setup card
         sb.Append("<div id=\"setup\" class=\"card\">");
-        sb.Append("<div id=\"resumeBanner\" class=\"resume-banner\" hidden>");
-        sb.Append("<span>\u23f8\ufe0f You have an interview in progress.</span>");
-        sb.Append("<button id=\"resumeBtn\" class=\"btn btn-go\" type=\"button\">Resume it \u2192</button>");
-        sb.Append("<button id=\"discardBtn\" class=\"btn btn-mic\" type=\"button\">Discard</button>");
-        sb.Append("</div>");
         sb.Append("<div class=\"card-title\">1 \u00b7 Add your resume &amp; tech stack</div>");
         sb.Append("<div class=\"hint\">Paste your resume text below, or upload a .txt file. For PDF/Word, open it, copy all the text and paste it here. The interviewer reads only this \u2014 nothing is uploaded to any server except your chosen AI model.</div>");
 
@@ -209,10 +202,6 @@ internal static class InterviewPage
         sb.Append(".sum-row b{font-weight:700;}");
         sb.Append(".bar{flex:1;height:8px;background:#e2e8f0;border-radius:999px;margin:0 12px;overflow:hidden;max-width:220px;}");
         sb.Append(".bar span{display:block;height:100%;background:linear-gradient(90deg,#7c3aed,#0891b2);}");
-        sb.Append(".resume-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;padding:12px 14px;border-radius:12px;margin-bottom:14px;font-size:14px;font-weight:600;}");
-        sb.Append(".replay-row{display:flex;align-items:center;gap:8px;margin-top:10px;}");
-        sb.Append(".replay-btn{border:0;cursor:pointer;background:#e0e7ff;color:#3730a3;font-weight:600;border-radius:10px;padding:7px 12px;font-size:13px;}");
-        sb.Append(".replay-btn:hover{background:#c7d2fe;}");
         sb.Append("@media(max-width:640px){.hero-inner{flex-direction:column;align-items:flex-start;}.pchip{flex:1 1 100%;}.controls{flex-direction:column;}.controls .btn{width:100%;}}");
         sb.Append("</style>");
     }
@@ -231,41 +220,13 @@ internal static class InterviewPage
   ];
   var resume='',stack='',model='';
   var ri=0, curQ='', asked=[], roundScores=[], allScores=[], roundResults=[];
-  // Record & replay: keep this session's audio recordings in memory, keyed by
-  // a per-answer id. Blobs are too big for localStorage, so replay is for the
-  // current session; transcripts/scores are what get saved for the dashboard.
-  var SAVE='interviewSave', LOG='interviewLog';
-  var recordings={}, recId=0;
-  var mediaRec=null, mediaChunks=[], mediaStream=null, curRecId=null;
 
   var $=function(id){return document.getElementById(id);};
   var resumeEl=$('resume'), fileEl=$('resumeFile'), fileName=$('fileName'), stackEl=$('stack'), modelEl=$('model');
   var setupCard=$('setup'), setupMsg=$('setupMsg'), startBtn=$('startBtn');
-  var resumeBanner=$('resumeBanner'), resumeBtn=$('resumeBtn'), discardBtn=$('discardBtn');
   var stageCard=$('stage'), roundNameEl=$('roundName'), roundStepEl=$('roundStep'), qEl=$('question');
   var answerEl=$('answer'), micBtn=$('micBtn'), submitBtn=$('submitBtn'), nextBtn=$('nextBtn');
   var turnStatus=$('turnStatus'), fbEl=$('feedback'), finalCard=$('final');
-
-  // ---- Save / resume an in-progress interview ----------------------------
-  function saveState(){
-    try{
-      localStorage.setItem(SAVE, JSON.stringify({
-        resume:resume, stack:stack, model:model, ri:ri, curQ:curQ,
-        asked:asked, roundScores:roundScores, allScores:allScores, roundResults:roundResults,
-        savedAt:new Date().toISOString()
-      }));
-    }catch(e){}
-  }
-  function clearState(){ try{ localStorage.removeItem(SAVE); }catch(e){} }
-  function loadState(){ try{ return JSON.parse(localStorage.getItem(SAVE)||'null'); }catch(e){ return null; } }
-
-  function logResult(overall){
-    try{
-      var log=JSON.parse(localStorage.getItem(LOG)||'[]');
-      log.push({o:overall, rounds:roundResults, stack:stack, d:new Date().toISOString()});
-      localStorage.setItem(LOG, JSON.stringify(log.slice(-100)));
-    }catch(e){}
-  }
 
   // Upload a .txt resume into the textarea.
   fileEl.addEventListener('change',function(){
@@ -309,27 +270,9 @@ internal static class InterviewPage
     stack=(stackEl.value||'').trim();
     model=modelEl?modelEl.value:'';
     if(resume.length<40){ setupMsg.textContent='Please paste a bit more of your resume first (experience, projects, skills).'; return; }
-    clearState(); recordings={}; recId=0;
     setupCard.hidden=true; stageCard.hidden=false; finalCard.hidden=true;
     ri=0; allScores=[]; roundResults=[];
     beginRound();
-    stageCard.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-
-  // Resume a previously saved interview: restore state and jump to the stage,
-  // re-fetching a fresh question for wherever we left off.
-  function resumeInterview(){
-    var s=loadState(); if(!s){ return; }
-    resume=s.resume||''; stack=s.stack||''; model=s.model||'';
-    ri=s.ri||0; asked=s.asked||[]; roundScores=s.roundScores||[];
-    allScores=s.allScores||[]; roundResults=s.roundResults||[];
-    resumeEl.value=resume; stackEl.value=stack;
-    if(modelEl&&model){ modelEl.value=model; }
-    recordings={}; recId=0;
-    setupCard.hidden=true; stageCard.hidden=false; finalCard.hidden=true;
-    setProgress();
-    roundNameEl.textContent=ROUNDS[ri]?ROUNDS[ri].name:'';
-    fetchQuestion();
     stageCard.scrollIntoView({behavior:'smooth',block:'start'});
   }
 
@@ -350,43 +293,16 @@ internal static class InterviewPage
         curQ=(d&&d.question)?d.question:'Tell me about a recent project from your resume.';
         qEl.textContent=curQ;
         answerEl.disabled=false; submitBtn.disabled=false; answerEl.focus();
-        startRecording();
       })
       .catch(function(){
         curQ='Tell me about a recent project from your resume.';
         qEl.textContent=curQ; answerEl.disabled=false; submitBtn.disabled=false;
-        startRecording();
       });
-  }
-
-  // ---- Record & replay: capture the spoken answer as audio ----------------
-  function startRecording(){
-    if(!window.MediaRecorder||!navigator.mediaDevices){ return; }
-    curRecId=++recId; mediaChunks=[];
-    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
-      mediaStream=stream;
-      try{ mediaRec=new MediaRecorder(stream); }catch(e){ mediaRec=null; return; }
-      mediaRec.ondataavailable=function(ev){ if(ev.data&&ev.data.size){ mediaChunks.push(ev.data); } };
-      var idAtStart=curRecId;
-      mediaRec.onstop=function(){
-        if(mediaChunks.length){
-          var blob=new Blob(mediaChunks,{type:'audio/webm'});
-          recordings[idAtStart]=URL.createObjectURL(blob);
-        }
-        if(mediaStream){ mediaStream.getTracks().forEach(function(t){t.stop();}); mediaStream=null; }
-      };
-      mediaRec.start();
-    }).catch(function(){ /* mic denied: recording just off, no error */ });
-  }
-  function stopRecording(){
-    try{ if(mediaRec&&mediaRec.state!=='inactive'){ mediaRec.stop(); } }catch(e){}
   }
 
   function submitAnswer(){
     var answer=(answerEl.value||'').trim();
     if(answer.length===0){ turnStatus.textContent='Type or speak your answer first.'; return; }
-    stopRecording();
-    var thisRec=curRecId;
     submitBtn.disabled=true; answerEl.disabled=true; turnStatus.textContent='Scoring your answer\u2026';
     post('/interview/evaluate',{resume:resume,stack:stack,round:ROUNDS[ri].id,question:curQ,answer:answer,model:model})
       .then(function(d){
@@ -394,8 +310,7 @@ internal static class InterviewPage
         var feedback=(d&&d.feedback)?d.feedback:'';
         var tips=(d&&d.tips)?d.tips:[];
         asked.push(curQ); roundScores.push(score); allScores.push(score);
-        saveState();
-        showFeedback(score,feedback,tips,thisRec);
+        showFeedback(score,feedback,tips);
         turnStatus.textContent='';
       })
       .catch(function(){
@@ -404,7 +319,7 @@ internal static class InterviewPage
       });
   }
 
-  function showFeedback(score,feedback,tips,recRef){
+  function showFeedback(score,feedback,tips){
     var html='<div class=\""fb-score\"">Score: '+score+'/100 '+
       '<span class=\""fb-badge\"" style=\""background:'+badgeColor(score)+'\"">'+(score>=75?'Strong':(score>=55?'OK':'Weak'))+'</span></div>';
     html+='<div class=\""fb-text\"">'+escapeHtml(feedback)+'</div>';
@@ -414,21 +329,6 @@ internal static class InterviewPage
       html+='</ul>';
     }
     fbEl.innerHTML=html; fbEl.hidden=false;
-    // Give a short delay so the recorder's onstop can save the blob, then show replay.
-    if(recRef){
-      setTimeout(function(){
-        var url=recordings[recRef];
-        if(url){
-          var row=document.createElement('div'); row.className='replay-row';
-          var btn=document.createElement('button'); btn.className='replay-btn'; btn.type='button';
-          btn.textContent='\u25b6 Replay my answer';
-          var audio=new Audio(url);
-          btn.addEventListener('click',function(){ if(audio.paused){ audio.play(); btn.textContent='\u23f8 Pause'; } else { audio.pause(); btn.textContent='\u25b6 Replay my answer'; } });
-          audio.addEventListener('ended',function(){ btn.textContent='\u25b6 Replay my answer'; });
-          row.appendChild(btn); fbEl.appendChild(row);
-        }
-      },350);
-    }
     submitBtn.hidden=true; nextBtn.hidden=false;
     var last=shouldEndRound();
     var lastRound=(ri>=ROUNDS.length-1);
@@ -450,7 +350,6 @@ internal static class InterviewPage
     setProgress();
     stageCard.hidden=true; finalCard.hidden=false;
     var overall=Math.round(allScores.reduce(function(a,b){return a+b;},0)/Math.max(1,allScores.length));
-    clearState(); logResult(overall);
     var verdict, vColor, vBg;
     if(overall>=75){ verdict='Strong hire \u2014 you are ready.'; vColor='#065f46'; vBg='#ecfdf5'; }
     else if(overall>=60){ verdict='Hire with minor feedback \u2014 close, polish a little.'; vColor='#92400e'; vBg='#fffbeb'; }
@@ -511,11 +410,6 @@ internal static class InterviewPage
   submitBtn.addEventListener('click',submitAnswer);
   nextBtn.addEventListener('click',nextStep);
   answerEl.addEventListener('keydown',function(e){ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ submitAnswer(); } });
-
-  // On load, offer to resume an interview that was left in progress.
-  if(resumeBtn){ resumeBtn.addEventListener('click',resumeInterview); }
-  if(discardBtn){ discardBtn.addEventListener('click',function(){ clearState(); if(resumeBanner){ resumeBanner.hidden=true; } }); }
-  (function(){ if(loadState()&&resumeBanner){ resumeBanner.hidden=false; } })();
 })();
 </script>");
     }
