@@ -142,20 +142,56 @@ public sealed class AppConfig
                 "cohere/north-mini-code:free",
                 "https://openrouter.ai/api/v1/chat/completions"),
             ["tokenrouter"] = new(
-                "tokenrouter", "TokenRouter \u00b7 Claude Sonnet 4.6", null,
-                "anthropic/claude-sonnet-4.6",
+                "tokenrouter", "TokenRouter \u00b7 Kimi K3 (free)", null,
+                "moonshotai/kimi-k3-free",
                 "https://api.tokenrouter.com/v1/chat/completions"),
-            ["tokenrouter-opus"] = new(
-                "tokenrouter-opus", "TokenRouter \u00b7 Claude Opus 4.6 (best)", null,
-                "anthropic/claude-opus-4.6",
+            ["tokenrouter-kimi"] = new(
+                "tokenrouter-kimi", "TokenRouter \u00b7 Kimi K3 (long-context)", null,
+                "moonshotai/kimi-k3",
                 "https://api.tokenrouter.com/v1/chat/completions"),
-            ["tokenrouter-haiku"] = new(
-                "tokenrouter-haiku", "TokenRouter \u00b7 Claude Haiku 4.5 (fast)", null,
-                "anthropic/claude-haiku-4.5",
+            ["tokenrouter-kimi-code"] = new(
+                "tokenrouter-kimi-code", "TokenRouter \u00b7 Kimi K2.7 Code", null,
+                "moonshotai/kimi-k2.7-code",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-claude-sonnet"] = new(
+                "tokenrouter-claude-sonnet", "TokenRouter \u00b7 Claude Sonnet 5", null,
+                "anthropic/claude-sonnet-5",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-claude-opus"] = new(
+                "tokenrouter-claude-opus", "TokenRouter \u00b7 Claude Opus 5 (best)", null,
+                "anthropic/claude-opus-5",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-gpt"] = new(
+                "tokenrouter-gpt", "TokenRouter \u00b7 GPT 5.6 (Sol)", null,
+                "openai/gpt-5.6-sol",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-gpt-fast"] = new(
+                "tokenrouter-gpt-fast", "TokenRouter \u00b7 GPT 5.6 (Luna, cheap)", null,
+                "openai/gpt-5.6-luna",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-gemini"] = new(
+                "tokenrouter-gemini", "TokenRouter \u00b7 Gemini 3.6 Flash", null,
+                "google/gemini-3.6-flash",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-grok"] = new(
+                "tokenrouter-grok", "TokenRouter \u00b7 Grok 4.5", null,
+                "x-ai/grok-4.5",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-deepseek"] = new(
+                "tokenrouter-deepseek", "TokenRouter \u00b7 DeepSeek V4 Flash", null,
+                "deepseek/deepseek-v4-flash-0731",
                 "https://api.tokenrouter.com/v1/chat/completions"),
             ["tokenrouter-glm"] = new(
                 "tokenrouter-glm", "TokenRouter \u00b7 GLM 5.2", null,
                 "z-ai/glm-5.2",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-qwen"] = new(
+                "tokenrouter-qwen", "TokenRouter \u00b7 Qwen 3.7 Plus", null,
+                "qwen/qwen3.7-plus",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-mistral"] = new(
+                "tokenrouter-mistral", "TokenRouter \u00b7 Mistral Small", null,
+                "mistralai/mistral-small-2603",
                 "https://api.tokenrouter.com/v1/chat/completions"),
             ["nvidia"] = new(
                 "nvidia", "NVIDIA \u00b7 Nemotron Super 49B (best, fast)", null,
@@ -180,7 +216,7 @@ public sealed class AppConfig
                 "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "openrouter-gemma", "openrouter-deepseek", "openrouter-deepseek-r1", "openrouter-qwen-coder", "openrouter-mistral", "openrouter-gptoss", "openrouter-ling", "openrouter-laguna", "openrouter-north-code", "tokenrouter", "tokenrouter-opus", "tokenrouter-haiku", "tokenrouter-glm", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
+        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "openrouter-gemma", "openrouter-deepseek", "openrouter-deepseek-r1", "openrouter-qwen-coder", "openrouter-mistral", "openrouter-gptoss", "openrouter-ling", "openrouter-laguna", "openrouter-north-code", "tokenrouter", "tokenrouter-kimi", "tokenrouter-kimi-code", "tokenrouter-claude-sonnet", "tokenrouter-claude-opus", "tokenrouter-gpt", "tokenrouter-gpt-fast", "tokenrouter-gemini", "tokenrouter-grok", "tokenrouter-deepseek", "tokenrouter-glm", "tokenrouter-qwen", "tokenrouter-mistral", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
         // Build the list of config files to read, in priority order (later files
