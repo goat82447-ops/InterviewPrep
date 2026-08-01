@@ -186,6 +186,9 @@ public sealed class CodeAgent : IDisposable
             "Only if the request is truly impossible to guess, make a reasonable simple choice and note it in the message.\n" +
             "- Return ONLY the JSON object.";
 
+        // Prepend the shared ANSWER_STYLE.md code-quality guide (tech-lead level).
+        system = AnswerStyle.Wrap(system);
+
         var userMsg = $"Project folder name: {folderName}\nTask: {task}";
 
         string? lastNotice = null;
