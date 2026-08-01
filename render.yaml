@@ -31,6 +31,9 @@ services:
       # NVIDIA (free) — a good backup provider.
       - key: NVIDIA_API_KEY
         sync: false
+      # TokenRouter — one key for many models (Claude, GLM, etc.).
+      - key: TOKENROUTER_API_KEY
+        sync: false
       # Optional — only needed if you want ChatGPT answers (requires OpenAI billing).
       - key: OPENAI_API_KEY
         sync: false

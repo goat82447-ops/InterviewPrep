@@ -22,6 +22,7 @@ internal static class LivePage
         sb.Append("<link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">");
         AppendStyles(sb);
         sb.Append("</head><body>");
+        WebChrome.Append(sb);
 
         // Hero
         sb.Append("<header class=\"hero\"><div class=\"hero-inner\">");
@@ -41,6 +42,8 @@ internal static class LivePage
         sb.Append("<a class=\"chip\" href=\"/practice\">\ud83c\udf93 Practice questions</a>");
         sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
         sb.Append("<a class=\"chip active\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
+        sb.Append("<a class=\"chip\" href=\"/interview\">\ud83e\udde9 Interview mode</a>");
+        sb.Append("<a class=\"chip\" href=\"/dashboard\">\ud83d\udcc8 Progress</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
         sb.Append("<a class=\"chip\" href=\"/settings\">\u2699\ufe0f Settings</a>");
@@ -64,9 +67,9 @@ internal static class LivePage
         sb.Append("<ol>");
         sb.Append("<li>Turn on your camera and sit straight, like a real interview.</li>");
         sb.Append("<li>Press <b>Start</b>. You will hear the rules and then the question.</li>");
-        sb.Append("<li>Press <b>Answer</b> and speak your answer out loud, clearly.</li>");
-        sb.Append("<li>Press <b>Stop &amp; submit</b> when done. Wait for the result.</li>");
-        sb.Append("<li>Read whether you are <b>selected</b> or <b>rejected</b>, your drawbacks, and how to improve.</li>");
+        sb.Append("<li>Press <b>\ud83c\udf99\ufe0f Listen</b> and speak your answer out loud, clearly.</li>");
+        sb.Append("<li>Press <b>\ud83d\udde3\ufe0f Explain</b> when done. Wait for the result.</li>");
+        sb.Append("<li>Read your result, then the <b>next question is read out automatically</b> \u2014 just press Listen again.</li>");
         sb.Append("</ol></div>");
 
         // Camera + controls
@@ -102,9 +105,9 @@ internal static class LivePage
 
         sb.Append("<div class=\"controls\">");
         sb.Append("<button id=\"startBtn\" class=\"btn btn-primary\" type=\"button\">\u25b6 Start</button>");
-        sb.Append("<button id=\"answerBtn\" class=\"btn btn-mic\" type=\"button\" disabled>\ud83c\udf99\ufe0f Answer</button>");
-        sb.Append("<button id=\"submitBtn\" class=\"btn btn-go\" type=\"button\" disabled>\u23f9 Stop &amp; submit</button>");
-        sb.Append("<button id=\"nextBtn\" class=\"btn btn-ghost\" type=\"button\">\u21bb Next question</button>");
+        sb.Append("<button id=\"answerBtn\" class=\"btn btn-mic\" type=\"button\" disabled>\ud83c\udf99\ufe0f Listen</button>");
+        sb.Append("<button id=\"submitBtn\" class=\"btn btn-go\" type=\"button\" disabled>\ud83d\udde3\ufe0f Explain</button>");
+        sb.Append("<button id=\"nextBtn\" class=\"btn btn-ghost\" type=\"button\">\u21bb Skip</button>");
         sb.Append("</div>");
 
         sb.Append("<div id=\"status\" class=\"status\">Press Start when you are ready.</div>");
@@ -376,6 +379,28 @@ internal static class LivePage
     }
   }
 
+  var micReady=false;
+  // Ask for microphone permission up front and surface a clear reason when it
+  // fails. We release the track immediately so the Web Speech API can use the
+  // same mic (holding the track can starve speech recognition on some setups).
+  async function ensureMic(){
+    try{
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ return false; }
+      var s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      s.getTracks().forEach(function(t){ t.stop(); });
+      micReady=true;
+      return true;
+    }catch(e){
+      micReady=false;
+      var n=e&&e.name;
+      if(n==='NotAllowedError'||n==='SecurityError'){ setStatus('Microphone is blocked. Click the 🔒 icon in the address bar and allow the mic, then press Answer.'); }
+      else if(n==='NotReadableError'){ setStatus('The mic is busy in another app (Microsoft Teams / Zoom). Leave that call or free the mic, then press Answer.'); }
+      else if(n==='NotFoundError'){ setStatus('No microphone found. Plug one in (or pick one in Windows sound settings) and reload.'); }
+      else { setStatus('Mic not available right now. You can still type your answer below.'); }
+      return false;
+    }
+  }
+
   function setupRecognition(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){ return null; }
@@ -389,25 +414,42 @@ internal static class LivePage
       }
       transcriptEl.textContent=(finalText+interim).trim();
     };
-    r.onerror=function(ev){ setStatus('Mic error: '+ev.error+'. You can type your answer instead.'); };
+    r.onerror=function(ev){
+      if(ev.error==='no-speech'){ setStatus('I did not hear anything yet. Keep speaking clearly, or check your mic.'); return; }
+      if(ev.error==='audio-capture'){
+        listening=false;
+        setStatus('No sound from the mic. Another app (Teams / Zoom) may be using it. Free the mic, then press Answer again.');
+        answerBtn.classList.remove('rec'); answerBtn.disabled=false; recLamp.classList.remove('on');
+        return;
+      }
+      if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){
+        listening=false;
+        setStatus('Microphone permission is blocked. Allow it from the address bar, then press Answer again.');
+        answerBtn.classList.remove('rec'); answerBtn.disabled=false; recLamp.classList.remove('on');
+        return;
+      }
+      setStatus('Mic error: '+ev.error+'. You can type your answer instead.');
+    };
     r.onend=function(){ if(listening){ try{ r.start(); }catch(e){} } };
     return r;
   }
 
   var RULES='Welcome to your live interview. Here are the rules. '+
-    'I will ask you one question. Press Answer and speak clearly. '+
-    'Press Stop and submit when you are done. I will then tell you if you are selected or rejected, '+
-    'your drawbacks, and how to improve. Here is your question.';
+    'I will ask you one question. Press Listen and speak clearly. '+
+    'Press Explain when you are done. I will then tell you if you are selected or rejected, '+
+    'your drawbacks, and how to improve. Then the next question starts automatically. Here is your question.';
 
   startBtn.addEventListener('click', async function(){
     startBtn.disabled=true;
     setStatus('Starting camera...');
     await startCamera();
+    setStatus('Checking your microphone...');
+    await ensureMic();
     setStatus('Reading the rules...');
     var q=questionEl.textContent.trim();
     speak(RULES, function(){
       speak(q, function(){
-        setStatus('Press Answer and speak your answer.');
+        setStatus('Press \ud83c\udf99\ufe0f Listen and speak your answer. Press \ud83d\udde3\ufe0f Explain when done.');
         answerBtn.disabled=false;
       });
     });
@@ -420,9 +462,9 @@ internal static class LivePage
     if(recog){
       listening=true;
       try{ recog.start(); }catch(e){}
-      setStatus('Listening... speak now. Press Stop and submit when done.');
+      setStatus('Listening... speak now. Press \ud83d\udde3\ufe0f Explain when done.');
     }else{
-      setStatus('Speech-to-text not supported in this browser. Type your answer, then Stop and submit.');
+      setStatus('Speech-to-text not supported in this browser. Type your answer, then press \ud83d\udde3\ufe0f Explain.');
     }
     answerBtn.classList.add('rec');
     answerBtn.disabled=true;
@@ -484,27 +526,39 @@ internal static class LivePage
     resultEl.innerHTML=h;
     resultEl.hidden=false;
     resultEl.scrollIntoView({behavior:'smooth',block:'start'});
-    setStatus('Done. Press Next question to continue, or Start again on a new topic.');
+    setStatus('Here is your result. The next question will start automatically...');
     pushResult(v);
-    speak(v.verdict+'. '+(v.feedback||''));
+    speak(v.verdict+'. '+(v.feedback||''), function(){ setTimeout(advanceLoop, 500); });
   }
 
-  nextBtn.addEventListener('click', async function(){
-    try{ window.speechSynthesis.cancel(); }catch(e){}
-    setStatus('Loading next question...');
+  // Loop: after each answer, load the next question, read it out, and re-enable
+  // Listen so the user can answer again — hands-free until they Skip or leave.
+  async function advanceLoop(){
+    setStatus('Loading the next question...');
     try{
       var res=await fetch('/live/question?topic='+encodeURIComponent(topicEl.value||''));
       var d=await res.json();
       questionEl.textContent=d.question;
-      transcriptEl.textContent='';
-      finalText='';
+      transcriptEl.textContent=''; finalText='';
       syncCamQ();
       resultEl.hidden=true;
-      answerBtn.disabled=true;
       submitBtn.disabled=true;
-      startBtn.disabled=false;
-      setStatus('New question ready. Press Start to hear it, then Answer.');
-    }catch(e){ setStatus('Could not load a new question.'); }
+      speak(d.question, function(){
+        setStatus('Press \ud83c\udf99\ufe0f Listen and speak your answer. Press \ud83d\udde3\ufe0f Explain when done.');
+        answerBtn.disabled=false;
+      });
+    }catch(e){
+      setStatus('Could not load the next question. Press \u21bb Skip to try again.');
+      answerBtn.disabled=false;
+    }
+  }
+
+  nextBtn.addEventListener('click', function(){
+    listening=false;
+    if(recog){ try{ recog.stop(); }catch(e){} }
+    answerBtn.classList.remove('rec'); recLamp.classList.remove('on');
+    answerBtn.disabled=true; submitBtn.disabled=true;
+    advanceLoop();
   });
 
   function syncCamQ(){ if(camqEl){ camqEl.textContent=(questionEl.textContent||'').trim(); } }
