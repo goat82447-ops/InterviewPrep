@@ -141,6 +141,22 @@ public sealed class AppConfig
                 "openrouter-north-code", "OpenRouter \u00b7 Cohere North Mini Code (free, coding)", null,
                 "cohere/north-mini-code:free",
                 "https://openrouter.ai/api/v1/chat/completions"),
+            ["tokenrouter"] = new(
+                "tokenrouter", "TokenRouter \u00b7 Claude Sonnet 4.6", null,
+                "anthropic/claude-sonnet-4.6",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-opus"] = new(
+                "tokenrouter-opus", "TokenRouter \u00b7 Claude Opus 4.6 (best)", null,
+                "anthropic/claude-opus-4.6",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-haiku"] = new(
+                "tokenrouter-haiku", "TokenRouter \u00b7 Claude Haiku 4.5 (fast)", null,
+                "anthropic/claude-haiku-4.5",
+                "https://api.tokenrouter.com/v1/chat/completions"),
+            ["tokenrouter-glm"] = new(
+                "tokenrouter-glm", "TokenRouter \u00b7 GLM 5.2", null,
+                "z-ai/glm-5.2",
+                "https://api.tokenrouter.com/v1/chat/completions"),
             ["nvidia"] = new(
                 "nvidia", "NVIDIA \u00b7 Nemotron Super 49B (best, fast)", null,
                 "nvidia/llama-3.3-nemotron-super-49b-v1.5",
@@ -164,7 +180,7 @@ public sealed class AppConfig
                 "openai", "OpenAI \u00b7 GPT-4o mini (ChatGPT API)", null,
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
-        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "openrouter-gemma", "openrouter-deepseek", "openrouter-deepseek-r1", "openrouter-qwen-coder", "openrouter-mistral", "openrouter-gptoss", "openrouter-ling", "openrouter-laguna", "openrouter-north-code", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
+        var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "openrouter-gemma", "openrouter-deepseek", "openrouter-deepseek-r1", "openrouter-qwen-coder", "openrouter-mistral", "openrouter-gptoss", "openrouter-ling", "openrouter-laguna", "openrouter-north-code", "tokenrouter", "tokenrouter-opus", "tokenrouter-haiku", "tokenrouter-glm", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
         var defaultId = "groq";
 
         // Build the list of config files to read, in priority order (later files
@@ -279,6 +295,7 @@ public sealed class AppConfig
         ApplyEnvKey(byId, "groq", "GROQ_API_KEY");
         ApplyEnvKey(byId, "gemini", "GEMINI_API_KEY");
         ApplyEnvKey(byId, "openrouter", "OPENROUTER_API_KEY");
+        ApplyEnvKey(byId, "tokenrouter", "TOKENROUTER_API_KEY");
         ApplyEnvKey(byId, "nvidia", "NVIDIA_API_KEY");
         ApplyEnvKey(byId, "openai", "OPENAI_API_KEY");
         var legacyEnv = Environment.GetEnvironmentVariable("OpenAi__ApiKey");
@@ -361,6 +378,26 @@ public sealed class AppConfig
                 if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
                 {
                     byId[id] = byId[id] with { ApiKey = openrouterKey };
+                }
+            }
+        }
+
+        // One TokenRouter key powers every TokenRouter model (tokenrouter,
+        // tokenrouter-opus, tokenrouter-haiku, tokenrouter-glm). Share the
+        // "tokenrouter" key (or the TOKENROUTER_API_KEY env var) with the other
+        // tokenrouter-* models so the user only pastes their key once.
+        var tokenrouterEnv = Environment.GetEnvironmentVariable("TOKENROUTER_API_KEY");
+        var tokenrouterKey = !string.IsNullOrWhiteSpace(tokenrouterEnv)
+            ? tokenrouterEnv
+            : (byId.TryGetValue("tokenrouter", out var trr) ? trr.ApiKey : null);
+        if (!string.IsNullOrWhiteSpace(tokenrouterKey))
+        {
+            foreach (var id in byId.Keys.Where(k =>
+                         k.StartsWith("tokenrouter", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                if (string.IsNullOrWhiteSpace(byId[id].ApiKey))
+                {
+                    byId[id] = byId[id] with { ApiKey = tokenrouterKey };
                 }
             }
         }
