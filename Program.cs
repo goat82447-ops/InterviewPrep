@@ -823,6 +823,9 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
             "text/html");
     });
 
+    // Progress dashboard (all client-side; reads localStorage history).
+    app.MapGet("/dashboard", () => Results.Content(DashboardPage.Render(), "text/html"));
+
     // Give the page the next question for a round (avoids ones already asked).
     app.MapPost("/interview/question", async (HttpRequest request) =>
     {
