@@ -13,6 +13,10 @@ services:
     runtime: docker
     plan: free
     region: oregon
+    # Deploy automatically on every push/merge to the "main" branch (CD).
+    # No more manual "Deploy" clicks \u2014 Render rebuilds and ships each merge.
+    branch: main
+    autoDeploy: true
     # The repo has the project in the "InterviewPrep" subfolder, so the
     # Dockerfile/csproj live there. Remove this line if they are at the repo root.
     rootDir: InterviewPrep
