@@ -27,14 +27,17 @@ public sealed class AppConfig
     public IReadOnlyList<AiProvider> Providers { get; init; } = Array.Empty<AiProvider>();
 
     /// <summary>Id of the provider used when the caller does not choose one.</summary>
-    public string DefaultProviderId { get; init; } = "groq";
+    public string DefaultProviderId { get; init; } = "gemini";
 
     /// <summary>Providers that have an API key configured (usable right now).</summary>
     public IReadOnlyList<AiProvider> EnabledProviders =>
         Providers.Where(p => p.HasKey).ToList();
 
-    /// <summary>True when at least one provider has a key.</summary>
-    public bool HasAnyAi => Providers.Any(p => p.HasKey);
+    /// <summary>True when at least one provider has a REAL key. The local Ollama
+    /// placeholder key does not count, so a fresh keyless download reports AI off
+    /// (and prompts for a Gemini key) instead of pretending AI is ready.</summary>
+    public bool HasAnyAi => Providers.Any(p => p.HasKey &&
+        !string.Equals(p.Id, "ollama", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Resolves a provider by id, preferring one that has a key. Falls
     /// back to the default provider, then the first usable one.</summary>
@@ -57,10 +60,76 @@ public sealed class AppConfig
             return def;
         }
 
-        return EnabledProviders.FirstOrDefault()
-               ?? def
+        // A real cloud provider the user actually configured. Ignore the local
+        // Ollama placeholder key so a fresh, keyless download shows the intended
+        // default (Gemini) instead of silently switching to Ollama.
+        var realEnabled = EnabledProviders.FirstOrDefault(p =>
+            !string.Equals(p.Id, "ollama", StringComparison.OrdinalIgnoreCase));
+        if (realEnabled is not null)
+        {
+            return realEnabled;
+        }
+
+        // Nothing is keyed: show the intended default so the banner tells the
+        // user which key to add. Fall back to Ollama / any provider last.
+        return def
+               ?? EnabledProviders.FirstOrDefault()
                ?? Providers.FirstOrDefault()
                ?? new AiProvider("none", "None", null, string.Empty, string.Empty);
+    }
+
+    // Preferred models for the coding AGENT (scaffolding real projects): strong
+    // coders first, then Google's smarter 2.5 Flash, ending at plain Flash. The
+    // first one that has a real key wins, so it works with whatever key is set.
+    private static readonly string[] CodingPreferred =
+    {
+        "tokenrouter-claude-sonnet", "tokenrouter-claude-opus",
+        "openrouter-deepseek", "openrouter-qwen-coder",
+        "groq-gptoss", "nvidia",
+        "gemini-flash25", "gemini-pro", "gemini",
+    };
+
+    // Preferred models for ASK mode (fast Q&A): quick, light models first.
+    private static readonly string[] FastPreferred =
+    {
+        "groq", "nvidia-nano", "gemini", "gemini-flash25",
+    };
+
+    /// <summary>Best available model for the coding agent. Honours an explicit
+    /// choice when it has a key, else picks the first keyed coder.</summary>
+    public AiProvider GetCodingProvider(string? chosen = null) =>
+        ResolvePreferred(chosen, CodingPreferred);
+
+    /// <summary>Fastest available model for Ask mode. Honours an explicit choice
+    /// when it has a key, else picks the first keyed fast model.</summary>
+    public AiProvider GetFastProvider(string? chosen = null) =>
+        ResolvePreferred(chosen, FastPreferred);
+
+    private AiProvider ResolvePreferred(string? chosen, string[] preferred)
+    {
+        if (!string.IsNullOrWhiteSpace(chosen))
+        {
+            var picked = Providers.FirstOrDefault(p =>
+                string.Equals(p.Id, chosen, StringComparison.OrdinalIgnoreCase));
+            if (picked is { HasKey: true })
+            {
+                return picked;
+            }
+        }
+
+        foreach (var id in preferred)
+        {
+            var p = Providers.FirstOrDefault(x =>
+                string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (p is { HasKey: true })
+            {
+                return p;
+            }
+        }
+
+        // No preferred model is keyed: fall back to the normal default (which
+        // still names Gemini even when no key is set yet).
+        return GetProvider(chosen);
     }
 
     // ---- Backward-compatible accessors for callers that don't switch models. ----
@@ -217,7 +286,7 @@ public sealed class AppConfig
                 "gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         };
         var order = new List<string> { "groq", "groq-compound", "groq-gptoss", "gemini", "gemini-pro", "gemini-flash25", "openrouter", "openrouter-gemma", "openrouter-deepseek", "openrouter-deepseek-r1", "openrouter-qwen-coder", "openrouter-mistral", "openrouter-gptoss", "openrouter-ling", "openrouter-laguna", "openrouter-north-code", "tokenrouter", "tokenrouter-kimi", "tokenrouter-kimi-code", "tokenrouter-claude-sonnet", "tokenrouter-claude-opus", "tokenrouter-gpt", "tokenrouter-gpt-fast", "tokenrouter-gemini", "tokenrouter-grok", "tokenrouter-deepseek", "tokenrouter-glm", "tokenrouter-qwen", "tokenrouter-mistral", "nvidia", "nvidia-nano", "nvidia-llama70b", "nvidia-deepseek", "ollama", "openai" };
-        var defaultId = "groq";
+        var defaultId = "gemini";
 
         // Build the list of config files to read, in priority order (later files
         // win). We always read the files next to the app first, then a fixed
