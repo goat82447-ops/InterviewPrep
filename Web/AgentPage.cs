@@ -65,7 +65,7 @@ internal static class AgentPage
         AppendModelPicker(sb, models, selectedModel);
         sb.Append("<div class=\"actions\">");
         sb.Append("<button class=\"btn btn-primary\" type=\"submit\">\u25b6 Build project</button>");
-        sb.Append("<a class=\"btn\" href=\"/download-agent\" download>\u2b07 Download agent (kr7.exe \u2014 just run it)</a>");
+        sb.Append("<a class=\"btn\" href=\"/download-agent\" download>\u2b07 Download agent (kr7.zip \u2014 unzip, then run kr7)</a>");
         sb.Append("</div>");
         sb.Append("</form>");
 
