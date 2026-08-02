@@ -26,7 +26,10 @@ if (HasFlag(args, "--web", "web"))
     return;
 }
 
-if (HasFlag(args, "--agent", "agent", "--cli", "cli"))
+// The downloadable agent is published as "kr7.exe". When the program is launched
+// under that name (just typing `kr7` in a terminal), go straight into the coding
+// agent — no flag needed. The --agent flag still works for the normal build too.
+if (HasFlag(args, "--agent", "agent", "--cli", "cli") || LaunchedAsKr7())
 {
     await RunAgentCliAsync(config);
     return;
@@ -37,6 +40,20 @@ return;
 
 static bool HasFlag(string[] args, params string[] names) =>
     args.Any(a => names.Any(n => a.Equals(n, StringComparison.OrdinalIgnoreCase)));
+
+// True when the running executable is the published agent (kr7.exe / kr7).
+static bool LaunchedAsKr7()
+{
+    try
+    {
+        var exe = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
+        return exe.StartsWith("kr7", StringComparison.OrdinalIgnoreCase);
+    }
+    catch
+    {
+        return false;
+    }
+}
 
 // A real command-line coding agent, like Copilot CLI: type a description to
 // scaffold a whole new project on disk, or use slash commands (/help, /model,
@@ -188,15 +205,19 @@ static async Task RunAgentCliAsync(AppConfig config)
 
         // Anything else is a project description. The agent decides the language,
         // the project name, and the folder itself — the user isn't asked for them.
-        var task = input;
+        // If the description was pasted across several lines, gather ALL of it now
+        // so it becomes ONE description and creates exactly ONE project.
+        var task = DrainPastedLines(input);
+        var stack = AskLanguage();
         var name = AutoProjectName(task);
         var location = sessionLocation;
 
+        Console.WriteLine($"Language (chosen)  : {stack}");
         Console.WriteLine($"Project name (auto): {name}");
         Console.WriteLine($"Location (auto)    : {location}");
         Console.WriteLine("Working\u2026");
         var (message, files, notice, source, projectFolder) =
-            await agent.RunAsync(task, name, location, sessionModelId);
+            await agent.RunAsync(task, name, location, sessionModelId, stack);
 
         Console.WriteLine();
         if (!string.IsNullOrWhiteSpace(notice))
@@ -214,7 +235,7 @@ static async Task RunAgentCliAsync(AppConfig config)
                 PrintFileDiff(f);
             }
 
-            await VerifyProjectAsync(projectFolder, files);
+            await BuildFixAndOfferRunAsync(agent, projectFolder, files, sessionModelId);
             Console.WriteLine("Done.");
             created++;
         }
@@ -297,9 +318,12 @@ static async Task RunAgentCliAsync(AppConfig config)
         return name.Length == 0 ? "NewProject" : name;
     }
 
-    // After a project is written, confirm every file is really on disk, then try
-    // to run it in a child process as a quick verification.
-    static async Task VerifyProjectAsync(string projectFolder, IReadOnlyList<CodeAgent.AgentFileResult> files)
+    // After a project is written: confirm files on disk, BUILD it, auto-fix any
+    // build errors with the agent (up to a few tries), and only when it builds
+    // cleanly offer to run it.
+    static async Task BuildFixAndOfferRunAsync(
+        CodeAgent agent, string projectFolder,
+        IReadOnlyList<CodeAgent.AgentFileResult> files, string? providerId)
     {
         Console.WriteLine();
         Console.WriteLine("Checking files on disk\u2026");
@@ -314,21 +338,288 @@ static async Task RunAgentCliAsync(AppConfig config)
 
         if (missing > 0)
         {
-            Console.WriteLine($"{missing} file(s) missing \u2014 skipping the run.");
+            Console.WriteLine($"{missing} file(s) missing \u2014 skipping build.");
             return;
         }
         Console.WriteLine("All files are present.");
 
-        var (exe, args) = PickRunCommand(projectFolder, files);
+        // Work out how to verify/compile THIS project's stack (.NET, Node, Python).
+        var plan = PlanBuild(projectFolder, files);
+        if (plan is null)
+        {
+            // Unknown stack, or nothing to compile (e.g. a plain HTML/static site):
+            // there is no build step, so just offer to run it.
+            Console.WriteLine("No build step for this project type \u2014 skipping straight to run.");
+            await OfferRunAsync(projectFolder, files);
+            return;
+        }
+
+        var (label, tool, cmds) = plan.Value;
+        const int maxAttempts = 3;
+        var built = false;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            Console.WriteLine($"\nBuilding ({label})\u2026 (attempt {attempt}/{maxAttempts})");
+            var (ok, output, toolMissing) = await RunChecksAsync(cmds, projectFolder);
+
+            if (toolMissing)
+            {
+                Console.WriteLine($"'{tool}' isn't installed here, so I can't build/verify this project. " +
+                    $"Install {tool} to enable auto-build and auto-fix.");
+                return;
+            }
+            if (ok)
+            {
+                built = true;
+                break;
+            }
+
+            Console.WriteLine(TrimOutput(output));
+            if (attempt == maxAttempts)
+            {
+                Console.WriteLine("\nStill has errors after fixes. Open the project and finish it manually.");
+                break;
+            }
+
+            Console.WriteLine("Build failed \u2014 asking the agent to fix the errors\u2026");
+            var (fixMsg, fixResults, fixNotice, _) =
+                await agent.RepairAsync(projectFolder, output, providerId);
+
+            if (!string.IsNullOrWhiteSpace(fixNotice))
+            {
+                Console.WriteLine(fixNotice);
+                break;
+            }
+            if (fixResults.Count == 0)
+            {
+                Console.WriteLine("The agent did not return a fix. Stopping.");
+                break;
+            }
+
+            Console.WriteLine($"Fixed: {fixMsg}");
+            foreach (var r in fixResults)
+            {
+                Console.WriteLine($"  {r.Status,-22} {r.Path}");
+            }
+        }
+
+        if (!built)
+        {
+            return;
+        }
+
+        Console.WriteLine("\nBuild completed.");
+        await OfferRunAsync(projectFolder, files);
+    }
+
+    // Decides how to verify/compile a project based on the files present, and
+    // returns a friendly label, the tool name (for the "not installed" message),
+    // and the exact command(s) to run. Returns null when there's no build step.
+    static (string label, string tool, List<(string exe, string args)> cmds)? PlanBuild(
+        string folder, IReadOnlyList<CodeAgent.AgentFileResult> files)
+    {
+        bool Has(string fileName) => files.Any(f =>
+            string.Equals(Path.GetFileName(f.Path), fileName, StringComparison.OrdinalIgnoreCase));
+
+        // .NET: a real compile with `dotnet build`.
+        var csproj = files.FirstOrDefault(f =>
+            f.Path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)).Path;
+        if (!string.IsNullOrEmpty(csproj))
+        {
+            return (".NET", "dotnet", new List<(string, string)>
+            {
+                ("dotnet", $"build \"{Path.Combine(folder, csproj)}\" -v quiet -nologo"),
+            });
+        }
+
+        // Node / Angular: install deps (catches a bad package.json), then compile
+        // TypeScript or syntax-check the JS entry point.
+        if (Has("package.json"))
+        {
+            var npm = OperatingSystem.IsWindows() ? "npm.cmd" : "npm";
+            var npx = OperatingSystem.IsWindows() ? "npx.cmd" : "npx";
+            var cmds = new List<(string, string)>
+            {
+                (npm, "install --no-audit --no-fund --loglevel=error"),
+            };
+            if (Has("tsconfig.json"))
+            {
+                cmds.Add((npx, "tsc --noEmit"));
+            }
+            else
+            {
+                var entry = new[] { "index.js", "app.js", "server.js", "main.js" }
+                    .FirstOrDefault(Has);
+                if (entry is not null)
+                {
+                    cmds.Add(("node", $"--check \"{Path.Combine(folder, entry)}\""));
+                }
+            }
+
+            var label = Has("angular.json") ? "Angular" : "Node";
+            return (label, "npm", cmds);
+        }
+
+        // Python: byte-compile every .py file to catch syntax errors.
+        var pys = files
+            .Where(f => f.Path.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+            .Select(f => $"\"{Path.Combine(folder, f.Path)}\"")
+            .ToList();
+        if (pys.Count > 0)
+        {
+            var py = OperatingSystem.IsWindows() ? "python" : "python3";
+            return ("Python", py, new List<(string, string)>
+            {
+                (py, "-m py_compile " + string.Join(' ', pys)),
+            });
+        }
+
+        return null;
+    }
+
+    // Runs each verify/build command in order. Stops at the first failure and
+    // returns (success, combined output, toolMissing).
+    static async Task<(bool ok, string output, bool toolMissing)> RunChecksAsync(
+        List<(string exe, string args)> cmds, string workDir)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var (exe, args) in cmds)
+        {
+            var (ok, output, toolMissing) = await RunProcessCaptureAsync(exe, args, workDir);
+            if (!string.IsNullOrEmpty(output)) { sb.AppendLine(output); }
+            if (toolMissing) { return (false, sb.ToString(), true); }
+            if (!ok) { return (false, sb.ToString(), false); }
+        }
+
+        return (true, sb.ToString(), false);
+    }
+
+    // Runs one process, captures stdout+stderr, and returns (success, output,
+    // toolMissing). toolMissing is true when the executable can't be found.
+    // Kills the process after 180s so a stuck install/build can't hang the agent.
+    static async Task<(bool ok, string output, bool toolMissing)> RunProcessCaptureAsync(
+        string exe, string args, string workDir)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = args,
+                WorkingDirectory = workDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var proc = new System.Diagnostics.Process { StartInfo = psi };
+            var sb = new System.Text.StringBuilder();
+            proc.OutputDataReceived += (_, e) => { if (e.Data is not null) { sb.AppendLine(e.Data); } };
+            proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) { sb.AppendLine(e.Data); } };
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+
+            var exited = await Task.Run(() => proc.WaitForExit(180_000));
+            if (!exited)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                sb.AppendLine($"[{exe} timed out after 180s and was stopped]");
+                return (false, sb.ToString(), false);
+            }
+
+            return (proc.ExitCode == 0, sb.ToString(), false);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return (false, $"{exe} not found", true);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, false);
+        }
+    }
+
+    // Asks whether to run the project, and runs it if the user says yes.
+    static async Task OfferRunAsync(
+        string projectFolder, IReadOnlyList<CodeAgent.AgentFileResult> files)
+    {
+        var (exe, runArgs) = PickRunCommand(projectFolder, files);
         if (exe is null)
         {
             Console.WriteLine("No known way to run this project type \u2014 skipping the run step.");
             return;
         }
 
-        Console.WriteLine($"Running to verify: {exe} {args}");
-        Console.WriteLine("(stops when it finishes, or after 25s if it keeps running)\n");
-        await RunForVerificationAsync(exe, args, projectFolder);
+        if (AskYesNo($"Run the application now? ({exe})"))
+        {
+            Console.WriteLine($"Running: {exe} {runArgs}");
+            Console.WriteLine("(stops when it finishes, or after 25s if it keeps running)\n");
+            await RunForVerificationAsync(exe, runArgs, projectFolder);
+        }
+    }
+
+    // Simple yes/no prompt. Defaults to NO on empty or piped input.
+    static bool AskYesNo(string question)
+    {
+        Console.Write($"{question} [y/N] ");
+        string? ans;
+        try { ans = Console.ReadLine(); }
+        catch { ans = null; }
+        return !string.IsNullOrWhiteSpace(ans)
+            && ans.Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Asks which language / stack to build in. Default is .NET, then Node,
+    // Python, or Angular. Returns a stack hint the agent uses when scaffolding.
+    static string AskLanguage()
+    {
+        Console.WriteLine();
+        Console.WriteLine("Choose a language / stack:");
+        Console.WriteLine("  1) .NET (C#)   [default]");
+        Console.WriteLine("  2) Node.js");
+        Console.WriteLine("  3) Python");
+        Console.WriteLine("  4) Angular");
+        Console.Write("Pick 1-4 (Enter for .NET): ");
+
+        string? ans;
+        try { ans = Console.ReadLine(); }
+        catch { ans = null; }
+
+        return (ans ?? string.Empty).Trim() switch
+        {
+            "2" => "Node.js",
+            "3" => "Python",
+            "4" => "Angular",
+            _ => ".NET (C#)",
+        };
+    }
+
+    // If a project description was pasted across several lines, the console
+    // buffers the extra lines. Pull them all in now and join them into ONE
+    // description so the agent builds a single project, not one per line.
+    static string DrainPastedLines(string firstLine)
+    {
+        var sb = new System.Text.StringBuilder(firstLine);
+        try
+        {
+            while (Console.KeyAvailable)
+            {
+                var more = Console.ReadLine();
+                if (more is null) { break; }
+                more = more.Trim();
+                if (more.Length > 0) { sb.Append(' ').Append(more); }
+            }
+        }
+        catch
+        {
+            // Console.KeyAvailable throws when input is redirected/piped; in that
+            // case each line is its own command, so just keep the first line.
+        }
+
+        return sb.ToString();
     }
 
     // Picks a run command based on the files present: .NET, Node, or Python.
