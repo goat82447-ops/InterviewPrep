@@ -1009,13 +1009,14 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.Content(html, "text/html");
     });
 
-    // Download the compiled agent as a single .exe. Anyone can save it and run it
-    // in cmd with:  Krishnaagent.exe --agent   (no repo, no .NET install needed).
+    // Download the compiled agent as a single self-contained kr7.exe. Save it
+    // anywhere and just run `kr7` \u2014 no repo, no .NET install needed. Because the
+    // file is named kr7.exe it boots straight into agent mode.
     app.MapGet("/download-agent", () =>
     {
-        var exePath = Path.Combine(ProjectPaths.ProjectRoot, "downloads", "Krishnaagent.exe");
+        var exePath = Path.Combine(ProjectPaths.ProjectRoot, "downloads", "kr7.exe");
         return File.Exists(exePath)
-            ? Results.File(exePath, "application/octet-stream", "Krishnaagent.exe")
+            ? Results.File(exePath, "application/octet-stream", "kr7.exe")
             : Results.NotFound("The agent .exe has not been published yet. Ask the owner to build it.");
     });
 

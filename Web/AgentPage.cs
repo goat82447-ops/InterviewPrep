@@ -20,6 +20,7 @@ internal static class AgentPage
         sb.Append("<title>Agent mode</title>");
         AppendStyles(sb);
         sb.Append("</head><body>");
+        WebChrome.Append(sb);
 
         sb.Append("<header class=\"hero\"><div class=\"hero-inner\">");
         sb.Append("<div class=\"brand\"><span class=\"logo\">\ud83e\udd16</span><div>");
@@ -40,6 +41,7 @@ internal static class AgentPage
         sb.Append("<a class=\"chip\" href=\"/mock\">\ud83c\udf99\ufe0f Mock interview</a>");
         sb.Append("<a class=\"chip\" href=\"/live\">\ud83d\udcf9 Live interview</a>");
         sb.Append("<a class=\"chip\" href=\"/interview\">\ud83e\udde9 Interview mode</a>");
+        sb.Append("<a class=\"chip\" href=\"/dashboard\">\ud83d\udcc8 Progress</a>");
         sb.Append("<a class=\"chip\" href=\"/drills\">\u26a1 Rapid drills</a>");
         sb.Append("<a class=\"chip\" href=\"/plan\">\ud83d\uddd3\ufe0f Study plan</a>");
         sb.Append("<a class=\"chip\" href=\"/settings\">\u2699\ufe0f Settings</a>");
@@ -63,7 +65,7 @@ internal static class AgentPage
         AppendModelPicker(sb, models, selectedModel);
         sb.Append("<div class=\"actions\">");
         sb.Append("<button class=\"btn btn-primary\" type=\"submit\">\u25b6 Build project</button>");
-        sb.Append("<a class=\"btn\" href=\"/download-agent\" download>\u2b07 Download agent .exe (run in cmd)</a>");
+        sb.Append("<a class=\"btn\" href=\"/download-agent\" download>\u2b07 Download agent (kr7.exe \u2014 just run it)</a>");
         sb.Append("</div>");
         sb.Append("</form>");
 
