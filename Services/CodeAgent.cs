@@ -96,7 +96,8 @@ public sealed class CodeAgent : IDisposable
     /// wrong, the provider used, and the absolute path of the project folder.
     /// </summary>
     public async Task<(string message, IReadOnlyList<AgentFileResult> files, string? notice, string source, string projectFolder)> RunAsync(
-        string task, string? projectName, string? basePath, string? providerId = null, CancellationToken ct = default)
+        string task, string? projectName, string? basePath, string? providerId = null,
+        string? stack = null, CancellationToken ct = default)
     {
         task = (task ?? string.Empty).Trim();
         var folderName = SanitizeProjectName(projectName);
@@ -121,7 +122,7 @@ public sealed class CodeAgent : IDisposable
 
         // Memory first: if we've already generated this exact task before (this
         // session OR a past one), reuse the saved copy and skip the server.
-        var cacheKey = folderName + "|" + task;
+        var cacheKey = folderName + "|" + (stack ?? string.Empty) + "|" + task;
         if (_cache.TryGetValue(cacheKey, out var cached))
         {
             var cachedFiles = cached.Files.Select(f => (f.Path, f.Content)).ToList();
@@ -166,6 +167,12 @@ public sealed class CodeAgent : IDisposable
             "- Paths are RELATIVE to the new project folder, with forward slashes. Do NOT include the " +
             "project folder name itself, and never use an absolute path, a drive letter, a leading slash, or '..'.\n" +
             "- Pick a sensible tech stack for the request (default to C# .NET 8 unless the user asks otherwise).\n" +
+            "- If a 'Preferred tech stack' is given, BUILD IN THAT STACK and generate its real project files: " +
+            ".NET \u2192 C# with a .csproj; Node.js \u2192 package.json + JS/TS; Python \u2192 modules + requirements.txt; " +
+            "Angular \u2192 angular.json + package.json + tsconfig.json + TypeScript components. Only deviate if the " +
+            "request truly cannot be done in that stack, and say so in the message.\n" +
+            "- Where it fits, ALSO add YAML files (.yml/.yaml): CI/CD like GitHub Actions under .github/workflows/, " +
+            "a docker-compose.yml, or app config \u2014 with correct, valid YAML.\n" +
             "- Write correct, compilable, idiomatic, production-grade code. Keep the file list focused but complete.\n" +
             "- BUILD LIKE A REAL ENGINEER, not a toy. For anything beyond a trivial script, use a clean, " +
             "layered structure and separate files by responsibility: e.g. Models/entities, Services/business " +
@@ -189,7 +196,9 @@ public sealed class CodeAgent : IDisposable
         // Prepend the shared ANSWER_STYLE.md code-quality guide (tech-lead level).
         system = AnswerStyle.Wrap(system);
 
-        var userMsg = $"Project folder name: {folderName}\nTask: {task}";
+        var userMsg = string.IsNullOrWhiteSpace(stack)
+            ? $"Project folder name: {folderName}\nTask: {task}"
+            : $"Project folder name: {folderName}\nPreferred tech stack: {stack}\nTask: {task}";
 
         string? lastNotice = null;
         foreach (var p in tryOrder)
@@ -462,6 +471,114 @@ public sealed class CodeAgent : IDisposable
         var appSep = app + Path.DirectorySeparatorChar;
         return target.StartsWith(appSep, StringComparison.OrdinalIgnoreCase)
             || app.StartsWith(targetSep, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Fixes BUILD ERRORS in an existing project. Sends the compiler errors plus
+    /// the current source files to the AI and writes back the corrected files.
+    /// Used by the CLI's build-and-fix loop.
+    /// </summary>
+    public async Task<(string message, IReadOnlyList<AgentFileResult> files, string? notice, string source)> RepairAsync(
+        string projectFolder, string buildErrors, string? providerId = null, CancellationToken ct = default)
+    {
+        var tryOrder = new List<AiProvider>();
+        var requested = _config.GetProvider(providerId);
+        if (requested.HasKey) { tryOrder.Add(requested); }
+        foreach (var p in _config.EnabledProviders)
+        {
+            if (!tryOrder.Any(x => x.Id == p.Id)) { tryOrder.Add(p); }
+        }
+        if (tryOrder.Count == 0)
+        {
+            return (string.Empty, Array.Empty<AgentFileResult>(),
+                "\u26a0\ufe0f No AI key is set, so the agent cannot fix the build.", "study bank");
+        }
+
+        var current = ReadProjectSources(projectFolder);
+        var sb = new StringBuilder();
+        sb.Append("The project failed to build. Fix ALL the compiler errors below.\n\n");
+        sb.Append("BUILD ERRORS:\n").Append(buildErrors).Append("\n\n");
+        sb.Append("CURRENT PROJECT FILES (path then full content):\n");
+        foreach (var (path, content) in current)
+        {
+            sb.Append("=== ").Append(path).Append(" ===\n").Append(content).Append("\n\n");
+        }
+
+        var system =
+            "You are a senior software engineer fixing BUILD ERRORS in an existing project. " +
+            "You are given the compiler errors and the current files. Return ONLY a single JSON object \u2014 " +
+            "no prose, no markdown, no code fences \u2014 EXACTLY:\n" +
+            "{ \"message\": \"one short sentence on what you fixed\", " +
+            "\"files\": [ { \"path\": \"relative/path.ext\", \"content\": \"the FULL corrected file content\" } ] }\n" +
+            "STRICT RULES:\n" +
+            "- Include ONLY the files you changed, but give their COMPLETE new content (never a diff or partial file).\n" +
+            "- Fix the ACTUAL cause of each error; do not delete features just to silence errors.\n" +
+            "- Keep the same project structure, namespaces, and intent. Add a missing file only if truly required.\n" +
+            "- Paths are RELATIVE to the project folder, forward slashes, no '..', no absolute paths.\n" +
+            "- Return ONLY the JSON object.";
+        system = AnswerStyle.Wrap(system);
+
+        string? lastNotice = null;
+        foreach (var p in tryOrder)
+        {
+            var (content, notice) = await PostAsync(p, system, sb.ToString(), ct);
+            if (!string.IsNullOrWhiteSpace(content)
+                && TryParse(content!, out var message, out var files) && files.Count > 0)
+            {
+                var results = WriteFiles(projectFolder, files);
+                return (message, results, null, p.DisplayName);
+            }
+
+            lastNotice = notice ?? lastNotice;
+        }
+
+        return (string.Empty, Array.Empty<AgentFileResult>(),
+            lastNotice ?? "\u26a0\ufe0f The AI model could not be reached to fix the build.", "study bank");
+    }
+
+    /// <summary>Reads the project's text/source files (skipping bin, obj, .git and
+    /// node_modules) so they can be sent to the AI for a build fix. Caps total size
+    /// so the request stays within the model's token budget.</summary>
+    private static List<(string Path, string Content)> ReadProjectSources(
+        string projectFolder, int maxTotalChars = 45000)
+    {
+        var allow = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".cs", ".csproj", ".sln", ".json", ".props", ".targets", ".config", ".xml",
+            ".js", ".ts", ".jsx", ".tsx", ".py", ".md", ".yml", ".yaml", ".txt",
+            ".html", ".css", ".razor", ".cshtml",
+        };
+
+        var list = new List<(string, string)>();
+        var total = 0;
+        IEnumerable<string> paths;
+        try { paths = Directory.EnumerateFiles(projectFolder, "*", SearchOption.AllDirectories); }
+        catch { return list; }
+
+        foreach (var file in paths)
+        {
+            var rel = Path.GetRelativePath(projectFolder, file).Replace('\\', '/');
+            if (rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase)
+                || rel.StartsWith("obj/", StringComparison.OrdinalIgnoreCase)
+                || rel.Contains("/bin/", StringComparison.OrdinalIgnoreCase)
+                || rel.Contains("/obj/", StringComparison.OrdinalIgnoreCase)
+                || rel.StartsWith(".git", StringComparison.OrdinalIgnoreCase)
+                || rel.Contains("node_modules", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!allow.Contains(Path.GetExtension(file))) { continue; }
+
+            string text;
+            try { text = File.ReadAllText(file); } catch { continue; }
+            if (text.Length > 20000) { text = text.Substring(0, 20000) + "\n/* ...truncated... */"; }
+            if (total + text.Length > maxTotalChars) { break; }
+            total += text.Length;
+            list.Add((rel, text));
+        }
+
+        return list;
     }
 
     public void Dispose() => _http.Dispose();
