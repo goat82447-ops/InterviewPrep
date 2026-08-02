@@ -17,3 +17,8 @@ obj/
 # User-specific / IDE
 .vs/
 *.user
+
+# Generated agent binaries — built by Docker on deploy (and locally); never commit.
+# The 97 MB kr7.exe is produced at build time, so it must NOT be pushed to git.
+dist/
+InterviewPrep/downloads/
