@@ -1009,15 +1009,36 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.Content(html, "text/html");
     });
 
-    // Download the compiled agent as a single self-contained kr7.exe. Save it
-    // anywhere and just run `kr7` \u2014 no repo, no .NET install needed. Because the
-    // file is named kr7.exe it boots straight into agent mode.
+    // Download the agent. We ship the self-contained kr7.exe INSIDE a .zip so
+    // browsers don't block the raw .exe as an "uncommon / dangerous" download.
+    // The zip is built once from the exe (works on Render's Linux and locally).
     app.MapGet("/download-agent", () =>
     {
-        var exePath = Path.Combine(ProjectPaths.ProjectRoot, "downloads", "kr7.exe");
-        return File.Exists(exePath)
-            ? Results.File(exePath, "application/octet-stream", "kr7.exe")
-            : Results.NotFound("The agent .exe has not been published yet. Ask the owner to build it.");
+        var dir = Path.Combine(ProjectPaths.ProjectRoot, "downloads");
+        var exePath = Path.Combine(dir, "kr7.exe");
+        var zipPath = Path.Combine(dir, "kr7.zip");
+
+        if (!File.Exists(zipPath) && File.Exists(exePath))
+        {
+            try
+            {
+                var tmp = zipPath + ".tmp";
+                if (File.Exists(tmp)) File.Delete(tmp);
+                using (var zip = System.IO.Compression.ZipFile.Open(tmp, System.IO.Compression.ZipArchiveMode.Create))
+                {
+                    System.IO.Compression.ZipFileExtensions.CreateEntryFromFile(zip, exePath, "kr7.exe");
+                }
+                if (!File.Exists(zipPath)) File.Move(tmp, zipPath);
+                else File.Delete(tmp);
+            }
+            catch { /* if zipping fails we still fall back to serving the raw exe below */ }
+        }
+
+        if (File.Exists(zipPath))
+            return Results.File(zipPath, "application/zip", "kr7.zip");
+        if (File.Exists(exePath))
+            return Results.File(exePath, "application/octet-stream", "kr7.exe");
+        return Results.NotFound("The agent has not been published yet. Ask the owner to build it.");
     });
 
     // Mock interview: answer a question, get coached, then face a follow-up.
