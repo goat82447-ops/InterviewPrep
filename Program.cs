@@ -216,8 +216,10 @@ static async Task RunAgentCliAsync(AppConfig config)
         Console.WriteLine($"Project name (auto): {name}");
         Console.WriteLine($"Location (auto)    : {location}");
         Console.WriteLine("Working\u2026");
+        // The CLI is a coding agent, so default to a coding-strong model.
+        var codeModelId = config.GetCodingProvider(sessionModelId).Id;
         var (message, files, notice, source, projectFolder) =
-            await agent.RunAsync(task, name, location, sessionModelId, stack);
+            await agent.RunAsync(task, name, location, codeModelId, stack);
 
         Console.WriteLine();
         if (!string.IsNullOrWhiteSpace(notice))
@@ -235,7 +237,7 @@ static async Task RunAgentCliAsync(AppConfig config)
                 PrintFileDiff(f);
             }
 
-            await BuildFixAndOfferRunAsync(agent, projectFolder, files, sessionModelId);
+            await BuildFixAndOfferRunAsync(agent, projectFolder, files, codeModelId);
             Console.WriteLine("Done.");
             created++;
         }
@@ -251,12 +253,17 @@ static async Task RunAgentCliAsync(AppConfig config)
 
     // ---- local helpers ----
 
-    AiProvider CurrentProvider() => config.GetProvider(sessionModelId);
+    AiProvider CurrentProvider() => config.GetCodingProvider(sessionModelId);
 
     string CurrentModelName()
     {
         var p = CurrentProvider();
-        return p.HasKey ? p.DisplayName : "no model (add an API key)";
+        if (p.HasKey) { return p.DisplayName; }
+        // Name the default model (Gemini) even without a key, so the user knows
+        // which key to add rather than seeing a blank "no model".
+        return string.Equals(p.Id, "none", StringComparison.OrdinalIgnoreCase)
+            ? "no model (add an API key)"
+            : $"{p.DisplayName} (add an API key)";
     }
 
     void PrintBanner()
@@ -940,7 +947,7 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var sid = GetSessionId(ctx);
         return Results.Content(
             AskPage.Render(null, null, null, config.HasOpenAi,
-                config.Providers, config.GetProvider(null).Id, null, null, sid),
+                config.Providers, config.GetFastProvider().Id, null, null, sid),
             "text/html");
     });
 
@@ -951,10 +958,12 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var question = form["question"].ToString();
         var model = form["model"].ToString();
 
+        // Ask mode is quick Q&A, so prefer a fast model.
+        var fastId = config.GetFastProvider(model).Id;
         using var assistant = new StudyAssistant(config);
-        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model, sid);
+        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, fastId, sid);
 
-        var selected = config.GetProvider(model).Id;
+        var selected = fastId;
         var html = AskPage.Render(question, answer, source, config.HasOpenAi,
             config.Providers, selected, notice, usage, sid);
         return Results.Content(html, "text/html");
@@ -970,7 +979,8 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var model = form["model"].ToString();
 
         using var assistant = new StudyAssistant(config);
-        var (answer, source, notice, usage) = await assistant.AnswerAsync(question, model, sid);
+        var (answer, source, notice, usage) =
+            await assistant.AnswerAsync(question, config.GetFastProvider(model).Id, sid);
         return Results.Json(new { answer, source, notice, usage, html = AnswerFormat.ToHtml(answer) });
     });
 
@@ -989,7 +999,7 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
     app.MapGet("/agent", () =>
         Results.Content(
             AgentPage.Render(null, null, null, null, null,
-                config.Providers, config.GetProvider(null).Id),
+                config.Providers, config.GetCodingProvider().Id),
             "text/html"));
 
     app.MapPost("/agent", async (HttpRequest request) =>
@@ -1000,10 +1010,12 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         var location = form["location"].ToString();
         var model = form["model"].ToString();
 
+        // Agent mode builds real code, so prefer a coding-strong model.
+        var codeId = config.GetCodingProvider(model).Id;
         using var agent = new CodeAgent(config);
-        var (message, files, notice, source, projectFolder) = await agent.RunAsync(task, project, location, model);
+        var (message, files, notice, source, projectFolder) = await agent.RunAsync(task, project, location, codeId);
 
-        var selected = config.GetProvider(model).Id;
+        var selected = codeId;
         var html = AgentPage.Render(task, project, location, message, files,
             config.Providers, selected, notice, source, projectFolder);
         return Results.Content(html, "text/html");
