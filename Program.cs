@@ -1053,6 +1053,49 @@ static void RunWeb(string[] args, AppConfig config, AnswerScorer scorer)
         return Results.NotFound("The agent has not been published yet. Ask the owner to build it.");
     });
 
+    // Download a project the web agent just generated, as a .zip. On the hosted
+    // site the files live on the server, so this is how the user gets them onto
+    // their own machine. We ONLY allow folders under the agent's project base to
+    // avoid handing out arbitrary server files (path-traversal guard).
+    app.MapGet("/download-project", (string? p) =>
+    {
+        if (string.IsNullOrWhiteSpace(p))
+            return Results.NotFound("No project specified.");
+
+        string full;
+        try { full = Path.GetFullPath(p); }
+        catch { return Results.NotFound("Invalid project path."); }
+
+        using var probe = new CodeAgent(config);
+        var baseDir = Path.GetFullPath(probe.DefaultBase);
+        var withSep = baseDir.EndsWith(Path.DirectorySeparatorChar)
+            ? baseDir
+            : baseDir + Path.DirectorySeparatorChar;
+        var cmp = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!full.StartsWith(withSep, cmp) || !Directory.Exists(full))
+            return Results.NotFound("Project not found (it may have been cleared).");
+
+        var name = new DirectoryInfo(full).Name;
+        var tmp = Path.Combine(Path.GetTempPath(), $"{name}-{Guid.NewGuid():N}.zip");
+        try
+        {
+            System.IO.Compression.ZipFile.CreateFromDirectory(full, tmp);
+            var bytes = File.ReadAllBytes(tmp);
+            return Results.File(bytes, "application/zip", name + ".zip");
+        }
+        catch
+        {
+            return Results.NotFound("Could not package the project.");
+        }
+        finally
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort */ }
+        }
+    });
+
     // Mock interview: answer a question, get coached, then face a follow-up.
     app.MapGet("/mock", (HttpRequest request) =>
     {
