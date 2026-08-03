@@ -108,6 +108,12 @@ internal static class AgentPage
                 }
 
                 sb.Append("<div class=\"cline dim\">Done. Open the folder above to run the new project.</div>");
+                if (!string.IsNullOrWhiteSpace(projectFolder))
+                {
+                    var dl = "/download-project?p=" + WebUtility.UrlEncode(projectFolder);
+                    sb.Append($"<div class=\"cline\"><a class=\"btn btn-primary\" href=\"{dl}\">\u2b07 Download project (.zip)</a> " +
+                              "<span class=\"dim\">\u2014 saves the whole project to your computer</span></div>");
+                }
             }
             else if (string.IsNullOrWhiteSpace(notice))
             {
