@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
-  SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+  SONAR_PROJECT_KEY: goat82447-ops_InterviewPrep
+  SONAR_ORGANIZATION: goat82447-ops
 
 jobs:
   analyze:
@@ -39,8 +39,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -z "$SONAR_PROJECT_KEY" ] || [ -z "$SONAR_ORGANIZATION" ] || [ -z "$SONAR_TOKEN" ]; then
-            echo "::error::Configure SONAR_PROJECT_KEY and SONAR_ORGANIZATION as repository variables, and SONAR_TOKEN as a repository secret."
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::Configure SONAR_TOKEN as a GitHub repository secret."
             exit 1
           fi
 
